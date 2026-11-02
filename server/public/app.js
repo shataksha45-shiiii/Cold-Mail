@@ -138,8 +138,8 @@ if (!canTransition) document.documentElement.classList.add('no-vt');
 
 // Page changes cross-fade with the View Transitions API where the browser has it.
 function route() {
-  const view = location.hash.replace('#/', '') || 'home';
-  const next = VIEWS.includes(view) ? view : 'home';
+  const view = location.hash.replace('#/', '').split('?')[0] || 'home';
+  const next = state.status?.user && VIEWS.includes(view) ? view : 'home';
   if (canTransition && state.routed && next !== state.view) document.startViewTransition(() => showView(next));
   else showView(next);
   state.routed = true;
@@ -152,7 +152,13 @@ function showView(view) {
   for (const tab of $$('#tabs a')) tab.classList.toggle('active', tab.dataset.view === state.view);
   if (state.view === 'bundles') renderBundles();
   if (state.view === 'ledger') renderLedger();
-  if (state.view === 'setup') renderSetup();
+  if (state.view === 'setup') {
+    renderSetup();
+    const err = new URLSearchParams(location.hash.split('?')[1] || '').get('error');
+    if (err === 'gmail') toast('Gmail wasn’t connected. Please allow “send email on your behalf” when Google asks.', 'error');
+    if (err === 'account') toast('Connect the same Google account you signed in with.', 'error');
+    if (err) history.replaceState(null, '', '#/setup');
+  }
   if (state.view === 'new') renderNew();
   if (state.view === 'desk') requestAnimationFrame(sizeDeck);
   $('#more-menu').hidden = true;
@@ -177,10 +183,10 @@ function renderDock() {
   const approved = c.contacts.filter((x) => x.status === 'approved').length;
   const send = $('#create-drafts');
   send.disabled = approved === 0;
-  send.textContent = approved ? `send ${approved} to gmail →` : 'approve to send';
+  send.textContent = approved ? `send ${approved} →` : 'approve to send';
   const select = $('#resume-select');
   select.replaceChildren(
-    ...state.status.resumes.map((f) => new Option(f, f, false, f === c.resolvedResume && c.attachResume !== false)),
+    ...state.status.resumes.map((r) => new Option(r.filename, r.id, false, r.id === c.resolvedResume && c.attachResume !== false)),
     new Option('no attachment', '__none__', false, c.attachResume === false || !c.resolvedResume),
   );
 }
@@ -188,7 +194,7 @@ function renderDock() {
 function renderCard(contact) {
   const card = $('#card-template').content.firstElementChild.cloneNode(true);
   const index = paletteIndex(contact);
-  const locked = contact.status === 'drafted';
+  const locked = contact.status === 'sent';
   card.dataset.id = contact.id;
   card.dataset.status = contact.status;
   paint(card, index);
@@ -232,7 +238,7 @@ function renderCard(contact) {
   $('.stamp-motif', card).innerHTML = motifFor(index);
   $('.stamp-value', card).textContent = VALUES[index % VALUES.length];
   if (contact.status === 'approved') $('.postmark', card).innerHTML = postmarkSvg('APPROVED', stampDate());
-  if (contact.status === 'drafted') $('.postmark', card).innerHTML = postmarkSvg('IN GMAIL', stampDate(contact.draftedAt));
+  if (contact.status === 'sent') $('.postmark', card).innerHTML = postmarkSvg('SENT', stampDate(contact.sentAt));
 
   if (contact.previouslyContacted) {
     const p = contact.previouslyContacted;
@@ -391,7 +397,7 @@ function updateControls() {
   $('#prev').disabled = state.index <= 0;
   $('#next').disabled = state.index >= n - 1;
   if (!c) return;
-  const locked = c.status === 'drafted';
+  const locked = c.status === 'sent';
   $('#act-approve').hidden = locked || c.status === 'approved';
   $('#act-skip').hidden = locked || c.status === 'skipped';
   $('#act-undo').hidden = locked || c.status === 'pending';
@@ -446,7 +452,7 @@ function updateContact(updated, { stamped = false } = {}) {
 async function act(status) {
   const card = currentCard();
   if (!card) return;
-  // Flush pending autosaves so the approved version is what gets drafted.
+  // Flush pending autosaves so the approved version is what gets sent.
   const pending = {};
   for (const field of ['email', 'subject', 'body']) {
     const el = $(`.${field}`, card);
@@ -511,9 +517,9 @@ function renderBundles() {
       <div class="bar"><i class="b-sent"></i><i class="b-stamped"></i><i class="b-skipped"></i></div>`;
     $('.bundle-stack b', b).textContent = pad(total);
     $('h2', b).textContent = c.targetRole;
-    $('p', b).textContent = `${formatDate(c.createdAt)} · ${c.counts.pending} to review · ${c.counts.drafted} sent`;
+    $('p', b).textContent = `${formatDate(c.createdAt)} · ${c.counts.pending} to review · ${c.counts.sent} sent`;
     const pct = (n) => `${total ? (n / total) * 100 : 0}%`;
-    $('.b-sent', b).style.width = pct(c.counts.drafted);
+    $('.b-sent', b).style.width = pct(c.counts.sent);
     $('.b-stamped', b).style.width = pct(c.counts.approved);
     $('.b-skipped', b).style.width = pct(c.counts.skipped);
     b.onclick = async () => {
@@ -554,59 +560,178 @@ async function renderLedger() {
   }));
 }
 
-// ---------- Setup ----------
+// ---------- Account ----------
+function stampTile(i, ok, title, state, mark) {
+  const el = document.createElement('div');
+  el.className = `setup-item ${ok ? 'on' : 'off'}`;
+  paint(el, i);
+  el.style.setProperty('--r', `${[-3, 2, -1.5, 3, -2, 1.5, -2.5][i % 7]}deg`);
+  el.innerHTML = `<div class="setup-stamp"><div class="art"><small><span lang="hi">भारत</span> INDIA</small>${motifFor(i)}<b>${VALUES[i % VALUES.length]}</b></div></div>
+    ${ok ? `<div class="setup-mark">${postmarkSvg(mark || 'READY', stampDate(), { waves: false })}</div>` : ''}
+    <h3></h3><p class="hint"></p>`;
+  $('h3', el).textContent = title;
+  const em = document.createElement('em');
+  em.textContent = state;
+  $('h3', el).append(em);
+  return el;
+}
+
+function editor(value, placeholder, label, save) {
+  const box = document.createElement('div');
+  box.className = 'sig-edit';
+  box.innerHTML = '<textarea rows="4" spellcheck="false"></textarea><button class="ghost" type="button"></button>';
+  $('textarea', box).value = value || '';
+  $('textarea', box).placeholder = placeholder;
+  $('button', box).textContent = label;
+  $('button', box).onclick = async () => {
+    try {
+      await save($('textarea', box).value);
+      toast('Saved.', 'good');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+  return box;
+}
+
 function renderSetup() {
   const s = state.status;
-  const items = [
-    { title: 'resume', ok: s.resumes.length > 0, hint: s.resumes.length ? s.resumes.join(', ') : 'Upload the PDF you send out', upload: true },
-    { title: 'profile', ok: Boolean(s.profile), hint: s.profile ? `Read from ${s.profile.sourceResume || 'your resume'}` : 'Made on your first <code>/coldmail</code>' },
-    { title: 'signature', ok: Boolean(s.profile?.signature), hint: s.profile ? 'Added under every email' : 'Made on your first run', edit: Boolean(s.profile) },
-    { title: 'gmail', ok: s.gmail.connected, hint: s.gmail.connected ? s.gmail.email || 'connected' : s.googleCredentials ? 'Run <code>npm run auth</code>' : 'See “Connect Gmail” in the README' },
-    { title: 'apollo', ok: s.apollo, hint: s.apollo ? 'Key found' : 'Optional · <code>APOLLO_API_KEY</code> in .env' },
-    { title: 'hunter', ok: s.hunter, hint: s.hunter ? 'Key found' : 'Optional · <code>HUNTER_API_KEY</code> in .env' },
-    { title: 'your voice', ok: s.styleExamples, hint: s.styleExamples ? 'Using your example emails' : 'Optional · <code>data/style-examples.md</code>' },
-  ];
-  $('#setup').replaceChildren(...items.map((item, i) => {
-    const el = document.createElement('div');
-    el.className = `setup-item ${item.ok ? 'on' : 'off'}`;
-    paint(el, i);
-    el.style.setProperty('--r', `${[-3, 2, -1.5, 3, -2, 1.5, -2.5][i]}deg`);
-    el.innerHTML = `<div class="setup-stamp"><div class="art"><small><span lang="hi">भारत</span> INDIA</small>${motifFor(i)}<b>${VALUES[i % VALUES.length]}</b></div></div>
-      ${item.ok ? `<div class="setup-mark">${postmarkSvg('READY', stampDate(), { waves: false })}</div>` : ''}
-      <h3>${item.title}<em>${item.ok ? 'ready' : 'missing'}</em></h3><p>${item.hint}</p>
-      ${item.upload ? `<label class="upload ghost">${item.ok ? 'add another' : 'upload PDF'}<input type="file" accept="application/pdf,.pdf" hidden></label>` : ''}`;
-    if (item.upload) $('input', el).onchange = (e) => uploadResume(e.target.files[0]);
-    if (item.edit) {
-      const box = document.createElement('div');
-      box.className = 'sig-edit';
-      box.innerHTML = '<textarea rows="4" spellcheck="false"></textarea><button class="ghost" type="button">save signature</button>';
-      $('textarea', box).value = s.profile.signature || '';
-      $('textarea', box).placeholder = 'Your name\nPhone · email\nLinkedIn: https://…';
-      $('button', box).onclick = async () => {
-        try {
-          const { signature } = await api('/api/profile', { method: 'PATCH', body: { signature: $('textarea', box).value } });
-          state.status.profile.signature = signature;
-          toast('Signature saved.', 'good');
-          renderSetup();
-        } catch (err) {
-          toast(err.message, 'error');
-        }
-      };
-      el.append(box);
-    }
-    return el;
+  const tiles = [];
+
+  // Resumes
+  const resume = stampTile(0, s.resumes.length > 0, 'resume', s.resumes.length ? 'ready' : 'missing');
+  $('.hint', resume).textContent = s.resumes.length ? 'Attached to your emails. Keep up to 5.' : 'Upload the PDF you send out.';
+  const list = document.createElement('ul');
+  list.className = 'file-list';
+  for (const r of s.resumes) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span></span><button type="button" class="linkish">remove</button>';
+    $('span', li).textContent = r.filename;
+    $('button', li).onclick = async () => {
+      if (!confirm(`Remove ${r.filename}?`)) return;
+      try {
+        await api(`/api/resume/${r.id}`, { method: 'DELETE' });
+        state.status = await api('/api/me');
+        renderSetup();
+      } catch (err) { toast(err.message, 'error'); }
+    };
+    list.append(li);
+  }
+  const upload = document.createElement('label');
+  upload.className = 'upload ghost';
+  upload.innerHTML = `${s.resumes.length ? 'add another' : 'upload PDF'}<input type="file" accept="application/pdf,.pdf" hidden>`;
+  $('input', upload).onchange = (e) => uploadResume(e.target.files[0]);
+  resume.append(list, upload);
+  tiles.push(resume);
+
+  // Profile (parsed resume)
+  const ps = s.profile.status;
+  const profile = stampTile(1, ps === 'ready', 'profile', { ready: 'ready', parsing: 'reading…', failed: 'failed', none: 'waiting' }[ps]);
+  $('.hint', profile).textContent = {
+    ready: 'Claude has read your resume and uses it to match people.',
+    parsing: 'Claude is reading your resume. This takes a minute.',
+    failed: 'Couldn’t read that resume. Try uploading it again.',
+    none: 'Made from your resume when you upload it.',
+  }[ps];
+  tiles.push(profile);
+
+  // Gmail
+  const gmail = stampTile(2, s.gmail.connected, 'gmail', s.gmail.connected ? 'connected' : 'not connected', 'LINKED');
+  $('.hint', gmail).textContent = s.gmail.connected
+    ? `Emails you approve are sent from ${s.gmail.email}. coldmail can only send; it can’t read your inbox.`
+    : 'Connect so approved postcards can be sent from your Gmail. coldmail can only send; it can’t read your inbox.';
+  const gbtn = document.createElement(s.gmail.connected ? 'button' : 'a');
+  gbtn.className = s.gmail.connected ? 'ghost upload' : 'send upload';
+  gbtn.textContent = s.gmail.connected ? 'disconnect' : 'connect gmail →';
+  if (s.gmail.connected) {
+    gbtn.type = 'button';
+    gbtn.onclick = async () => {
+      if (!confirm('Disconnect Gmail? You can connect it again any time.')) return;
+      await api('/api/gmail/disconnect', { method: 'POST', body: {} });
+      state.status = await api('/api/me');
+      renderSetup();
+      renderSidebar();
+    };
+  } else {
+    gbtn.href = '/auth/gmail';
+  }
+  gmail.append(gbtn);
+  tiles.push(gmail);
+
+  // Searches this month
+  const u = s.usage;
+  const left = u.limit === null ? null : Math.max(0, u.limit - u.used);
+  const usage = stampTile(3, left !== 0, 'searches', left === null ? 'unlimited' : `${left} left`, 'MONTHLY');
+  $('.hint', usage).textContent = left === null ? 'No monthly limit on this account.' : `${u.used} of ${u.limit} used this month. Resets on the 1st.`;
+  tiles.push(usage);
+
+  // Signature
+  const sig = stampTile(4, Boolean(s.profile.signature), 'signature', s.profile.signature ? 'ready' : 'empty');
+  $('.hint', sig).textContent = 'Added under every email, exactly as written.';
+  sig.append(editor(s.profile.signature, 'Your name\nPhone · email\nLinkedIn: https://…', 'save signature', async (value) => {
+    await api('/api/profile', { method: 'PATCH', body: { signature: value } });
+    state.status.profile.signature = value.trim();
   }));
+  tiles.push(sig);
+
+  // Voice
+  const voice = stampTile(5, Boolean(s.style), 'your voice', s.style ? 'set' : 'optional');
+  $('.hint', voice).textContent = 'Paste one or two cold emails you liked. Claude matches their tone.';
+  voice.append(editor(s.style, 'Hi Priya, I read your post on…', 'save examples', async (value) => {
+    await api('/api/profile', { method: 'PATCH', body: { style: value } });
+    state.status.style = value.trim();
+  }));
+  tiles.push(voice);
+
+  // Account actions
+  const acct = document.createElement('div');
+  acct.className = 'account-actions';
+  acct.innerHTML = '<p class="hint"></p><div><button class="ghost" type="button" id="sign-out">sign out</button><button class="ghost danger" type="button" id="delete-account">delete my account and data</button></div><p class="legal"><a href="/privacy">privacy</a> · <a href="/terms">terms</a></p>';
+  $('.hint', acct).textContent = `Signed in as ${s.user.email}`;
+  $('#sign-out', acct).onclick = async () => {
+    await api('/auth/logout', { method: 'POST', body: {} });
+    location.href = '/';
+  };
+  $('#delete-account', acct).onclick = async () => {
+    if (!confirm('Delete your account? This removes your resumes, bundles and history for good, and disconnects Gmail.')) return;
+    await api('/api/account', { method: 'DELETE' });
+    location.href = '/';
+  };
+
+  $('#setup').replaceChildren(...tiles, acct);
+}
+
+// Landing page call-to-action depends on whether you're signed in.
+function renderLanding() {
+  const start = $('#landing-start');
+  const desk = $('#landing-desk');
+  const params = new URLSearchParams(location.search);
+  if (params.get('error') === 'login') toast('Sign-in didn’t complete. Please try again.', 'error');
+  if (state.status.user) {
+    start.href = '#/new';
+    start.textContent = 'new bundle →';
+    desk.hidden = false;
+  } else {
+    start.href = '/auth/google';
+    start.textContent = 'sign in with Google →';
+    desk.hidden = true;
+  }
 }
 
 // ---------- Init + events ----------
 async function init() {
   for (const slot of $$('.logo-slot')) slot.innerHTML = MOTIFS.lotus();
   decorate();
-  const [status, campaigns] = await Promise.all([api('/api/status'), api('/api/campaigns')]);
+  const status = await api('/api/me');
   state.status = status;
+  renderLanding();
+  if (!status.user) {
+    route();
+    return;
+  }
+  const campaigns = await api('/api/campaigns');
   state.campaigns = campaigns;
   renderSidebar();
-  $('#landing-desk').hidden = !campaigns.length;
 
   if (!campaigns.length) {
     $('#desk-head').hidden = true;
@@ -655,11 +780,11 @@ $('#strip').addEventListener('wheel', (e) => {
 
 $('#resume-select').addEventListener('change', async (e) => {
   const value = e.target.value;
-  const body = value === '__none__' ? { attachResume: false } : { attachResume: true, resumeFile: value };
+  const body = value === '__none__' ? { attachResume: false } : { attachResume: true, resumeId: Number(value) };
   try {
     await api(`/api/campaigns/${state.campaign.id}`, { method: 'PATCH', body });
     Object.assign(state.campaign, body);
-    if (value !== '__none__') state.campaign.resolvedResume = value;
+    if (value !== '__none__') state.campaign.resolvedResume = Number(value);
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -668,13 +793,24 @@ $('#resume-select').addEventListener('change', async (e) => {
 $('#create-drafts').addEventListener('click', async () => {
   const btn = $('#create-drafts');
   btn.disabled = true;
+  if (!state.status.gmail.connected) {
+    toast('Connect Gmail on your account page first.', 'error');
+    location.hash = '#/setup';
+    renderDock();
+    return;
+  }
+  const n = state.campaign.contacts.filter((c) => c.status === 'approved').length;
+  if (!confirm(`Send ${n} email${n === 1 ? '' : 's'} from ${state.status.user.email} now? They go out immediately.`)) {
+    renderDock();
+    return;
+  }
   btn.textContent = 'posting…';
   try {
-    const results = await api(`/api/campaigns/${state.campaign.id}/drafts`, { method: 'POST', body: {} });
+    const results = await api(`/api/campaigns/${state.campaign.id}/send`, { method: 'POST', body: {} });
     const ok = results.filter((r) => r.ok).length;
     const failed = results.filter((r) => !r.ok);
     toast(
-      failed.length ? `${ok} posted. Couldn't post ${failed.map((f) => `${f.name} (${f.error})`).join('; ')}` : `${ok} postcard${ok === 1 ? '' : 's'} waiting in Gmail → Drafts.`,
+      failed.length ? `${ok} sent. Couldn't send ${failed.map((f) => `${f.name} (${f.error})`).join('; ')}` : `${ok} postcard${ok === 1 ? '' : 's'} sent from your Gmail.`,
       failed.length ? 'error' : 'good',
     );
   } catch (err) {
@@ -715,11 +851,17 @@ function renderNew() {
 
   const resumes = state.status.resumes;
   const select = $('#compose-resume');
-  select.replaceChildren(...resumes.map((f) => new Option(f, f)));
+  select.replaceChildren(...resumes.map((r) => new Option(r.filename, r.id)));
   const warn = $('#compose-warn');
   warn.hidden = resumes.length > 0;
-  warn.innerHTML = 'Upload your resume first, in <a href="#/setup">setup</a>.';
-  $('#compose-go').disabled = !resumes.length;
+  warn.innerHTML = 'Upload your resume first, on your <a href="#/setup">account</a> page.';
+  const u = state.status.usage;
+  const left = u.limit === null ? null : Math.max(0, u.limit - u.used);
+  $('.compose-note').textContent = left === null
+    ? 'Claude researches on the web, finds emails and writes each postcard. Takes 5–15 minutes.'
+    : `Claude researches on the web, finds emails and writes each postcard. Takes 5–15 minutes. ${left} of ${u.limit} searches left this month.`;
+  if (left === 0) { warn.hidden = false; warn.textContent = 'You have used all your searches for this month. They reset on the 1st.'; }
+  $('#compose-go').disabled = !resumes.length || left === 0;
 }
 
 // Claude's summary uses a little markdown: escape everything, then allow **bold** and `code`.
@@ -777,7 +919,7 @@ async function pollRun() {
   state.run = run;
   renderSidebar();
   if (wasRunning && run && run.status !== 'running') {
-    [state.status, state.campaigns] = await Promise.all([api('/api/status'), api('/api/campaigns')]);
+    [state.status, state.campaigns] = await Promise.all([api('/api/me'), api('/api/campaigns')]);
     if (run.status === 'done' && run.mode === 'more' && state.campaign?.id === run.campaignId) {
       const index = state.index;
       await loadCampaign(run.campaignId);
@@ -799,7 +941,7 @@ $('#compose').addEventListener('submit', async (e) => {
   $('#compose-go').disabled = true;
   try {
     seenEvents = 0;
-    state.run = await api('/api/runs', { method: 'POST', body: { target, count: $('#compose-count').value, resumeFile: $('#compose-resume').value } });
+    state.run = await api('/api/runs', { method: 'POST', body: { target, count: $('#compose-count').value, resumeId: Number($('#compose-resume').value) } });
     $('#compose-target').value = '';
     renderNew();
     pollRun();
@@ -834,9 +976,10 @@ async function uploadResume(file) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
-    state.status = await api('/api/status');
-    toast(`${data.file} saved.`, 'good');
+    state.status = data;
+    toast(`${file.name} saved.`, 'good');
     renderSetup();
+    renderSidebar();
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -848,18 +991,28 @@ function renderSidebar() {
   if (!s) return;
   const running = state.run?.status === 'running';
   $('#run-dot').hidden = !running;
-  $('#setup-dot').hidden = s.gmail.connected && s.resumes.length > 0;
+  $('#setup-dot').hidden = Boolean(s.gmail.connected && s.resumes.length > 0);
   const side = $('#side-run');
   side.hidden = !running;
   if (running) {
     $('span', side).textContent = state.run.mode === 'more' ? 'adding people…' : 'Claude is researching…';
     side.onclick = () => { location.hash = '#/new'; };
   }
-  const line = (on, text) => `<span class="${on ? 'on' : ''}">${text}</span>`;
-  $('#side-status').innerHTML = [
-    line(s.gmail.connected, s.gmail.connected ? 'gmail connected' : 'gmail not connected'),
-    line(s.hunter, s.hunter ? 'hunter ready' : 'no hunter key'),
-  ].join('');
+  const u = s.usage;
+  const box = $('#side-status');
+  box.replaceChildren();
+  const line = (on, text) => {
+    const span = document.createElement('span');
+    span.className = on ? 'on' : '';
+    span.textContent = text;
+    box.append(span);
+  };
+  line(s.gmail.connected, s.gmail.connected ? 'gmail connected' : 'gmail not connected');
+  line(true, u.limit === null ? 'unlimited searches' : `${Math.max(0, u.limit - u.used)} of ${u.limit} searches left`);
+  const who = document.createElement('span');
+  who.className = 'side-user';
+  who.textContent = s.user.email;
+  box.append(who);
 }
 
 // ---------- Add more people to the open bundle ----------

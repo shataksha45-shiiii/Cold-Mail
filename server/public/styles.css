@@ -448,8 +448,8 @@ main { min-width: 0; padding: 0 44px 70px; }
   pointer-events: none; color: var(--rani); mix-blend-mode: multiply; opacity: 0;
 }
 .postmark svg { width: 100%; height: 100%; }
-.postcard[data-status="approved"] .postmark, .postcard[data-status="drafted"] .postmark { opacity: .85; transform: rotate(-14deg); }
-.postcard[data-status="drafted"] .postmark { color: var(--mail-blue); }
+.postcard[data-status="approved"] .postmark, .postcard[data-status="sent"] .postmark { opacity: .85; transform: rotate(-14deg); }
+.postcard[data-status="sent"] .postmark { color: var(--mail-blue); }
 .just-stamped .postmark { animation: thud .55s var(--spring) both; }
 @keyframes thud { from { opacity: 0; transform: rotate(-2deg) scale(1.9); } 60% { opacity: .9; } }
 
@@ -525,8 +525,8 @@ main { min-width: 0; padding: 0 44px 70px; }
 .book-index button span { overflow: hidden; text-overflow: ellipsis; }
 .book-index button:hover { transform: translateX(-2px); color: var(--white); background: rgba(255, 255, 255, .12); }
 .book-index button.active { transform: translateX(4px); background: var(--paper); color: var(--ink); font-weight: 700; }
-.book-index button.st-approved::after, .book-index button.st-drafted::after { content: "●"; margin-left: auto; font-size: 8px; color: var(--rani); }
-.book-index button.st-drafted::after { color: #7f9bff; }
+.book-index button.st-approved::after, .book-index button.st-sent::after { content: "●"; margin-left: auto; font-size: 8px; color: var(--rani); }
+.book-index button.st-sent::after { color: #7f9bff; }
 .book-index button.st-skipped { opacity: .45; }
 
 /* ---------- Controls ---------- */
@@ -569,8 +569,8 @@ main { min-width: 0; padding: 0 44px 70px; }
 }
 .mini:hover { opacity: .9; transform: translateY(-4px); }
 .mini.active { opacity: 1; transform: translateY(-9px) rotate(-5deg); }
-.mini.st-approved span::after, .mini.st-drafted span::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 2px solid var(--rani); }
-.mini.st-drafted span::after { border-color: #7f9bff; }
+.mini.st-approved span::after, .mini.st-sent span::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 2px solid var(--rani); }
+.mini.st-sent span::after { border-color: #7f9bff; }
 .mini.st-skipped span { filter: grayscale(1); }
 
 /* ---------- New bundle: compose postcard ---------- */
@@ -854,3 +854,21 @@ body[data-view="home"] .toast { left: 50%; }
   .setup-mark { left: 70px; width: 86px; height: 86px; }
   .setup-item:has(.sig-edit) { grid-column: 1 / -1; }
 }
+
+/* ---------- Hosted: account page and sidebar user ---------- */
+.side-user { margin-top: 4px; color: rgba(255, 255, 255, .7); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-user::before { display: none !important; }
+.file-list { margin: -6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.file-list li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 12px; border-radius: 10px; background: var(--glass); }
+.file-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linkish { background: none; border: 0; padding: 0; color: #ff8cbd; font-size: 12.5px; font-weight: 600; }
+.linkish:hover { text-decoration: underline; }
+.setup-item .send.upload { align-self: flex-start; padding: 10px 18px; font-size: 13.5px; }
+.account-actions { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 14px; padding-top: 26px; border-top: 1px solid var(--glass-line); }
+.account-actions > div { display: flex; gap: 10px; flex-wrap: wrap; }
+.account-actions .hint { color: rgba(255, 255, 255, .6); font-size: 14px; }
+.ghost.danger { color: #ff8cbd; border-color: rgba(255, 46, 136, .4); }
+.ghost.danger:hover { background: rgba(255, 46, 136, .12); }
+.legal, .landing-legal { font-size: 13px; color: rgba(255, 255, 255, .5); }
+.legal a, .landing-legal a { color: inherit; }
+.landing-steps li.landing-legal { flex: 0 0 auto; padding-left: 20px; }

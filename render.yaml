@@ -1,0 +1,46 @@
+# Render blueprint: one web service + one Postgres database.
+# In Render: New → Blueprint → pick this repo and the "product" branch. See DEPLOY.md.
+services:
+  - type: web
+    name: coldmail
+    runtime: node
+    plan: starter            # always-on; free instances sleep and would cut off searches mid-run
+    branch: product
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: coldmail-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: APP_URL           # e.g. https://coldmail.onrender.com or your own domain
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: HUNTER_API_KEY
+        sync: false
+      - key: APOLLO_API_KEY
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: CONTACT_EMAIL
+        sync: false
+      - key: MONTHLY_RUN_LIMIT
+        value: "3"
+      - key: DAILY_SEND_LIMIT
+        value: "50"
+      - key: MAX_CONCURRENT_RUNS
+        value: "3"
+
+databases:
+  - name: coldmail-db
+    plan: basic-256mb

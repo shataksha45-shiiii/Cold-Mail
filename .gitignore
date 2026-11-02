@@ -17,3 +17,4 @@ data/style-examples.md
 node_modules/
 *.tmp
 .DS_Store
+data/dev-db/

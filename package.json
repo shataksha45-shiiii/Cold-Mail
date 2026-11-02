@@ -2,18 +2,20 @@
   "name": "cold-mail-automation",
   "version": "0.1.0",
   "private": true,
-  "description": "Find the right people for a role, write personalised cold emails, and drop them into Gmail drafts with your resume attached.",
+  "description": "coldmail: find the right people for a role, write each a personal email, and send from your Gmail.",
   "type": "module",
   "engines": {
     "node": ">=22.9"
   },
   "scripts": {
-    "status": "node --env-file-if-exists=.env scripts/status.js",
-    "auth": "node --env-file-if-exists=.env scripts/gmail-auth.js",
-    "check": "node --env-file-if-exists=.env scripts/check-campaign.js",
-    "find-emails": "node --env-file-if-exists=.env scripts/find-emails.js",
-    "drafts": "node --env-file-if-exists=.env scripts/create-drafts.js",
-    "review": "node --env-file-if-exists=.env server/review.js",
-    "merge": "node --env-file-if-exists=.env scripts/merge-contacts.js"
+    "start": "node server/app.js",
+    "dev": "node --env-file-if-exists=.env server/app.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14"
   }
 }

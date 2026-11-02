@@ -33,7 +33,7 @@
         <span class="w2">hand-</span>
         <span class="w3">delivered.</span>
       </h1>
-      <p class="landing-sub">Upload your resume and name the role. Claude finds the right people, writes each one a personal postcard, and drops it in your Gmail.</p>
+      <p class="landing-sub">Upload your resume and name the role. Claude finds the right people, writes each one a personal postcard, and you send them from your own Gmail after a quick review.</p>
       <div class="landing-cta">
         <a class="send big" href="#/new" id="landing-start">start →</a>
         <a class="ghost" href="#/desk" id="landing-desk">open the desk</a>
@@ -53,7 +53,8 @@
       <li><b>01</b>upload your resume</li>
       <li><b>02</b>name the role</li>
       <li><b>03</b>review postcards</li>
-      <li><b>04</b>send from gmail</li>
+      <li><b>04</b>send from your gmail</li>
+      <li class="landing-legal"><a href="/privacy">privacy</a> · <a href="/terms">terms</a></li>
     </ol>
   </section>
 
@@ -83,7 +84,7 @@
         </a>
         <a href="#/setup" data-view="setup">
           <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
-          <span>setup<small lang="hi">तैयारी</small></span><i class="dot" id="setup-dot" hidden></i>
+          <span>account<small lang="hi">खाता</small></span><i class="dot" id="setup-dot" hidden></i>
         </a>
       </nav>
       <div class="side-foot" id="side-foot">
@@ -122,7 +123,7 @@
             </div>
             <p class="compose-warn" id="compose-warn" hidden></p>
             <div class="compose-foot">
-              <p class="compose-note">Claude researches on the web, finds emails and writes each postcard. Takes 5–15 minutes and uses your Claude plan.</p>
+              <p class="compose-note">Claude researches on the web, finds emails and writes each postcard. Takes 5–15 minutes.</p>
               <button class="send" type="submit" id="compose-go">find people →</button>
             </div>
           </div>
@@ -174,7 +175,7 @@
             <button data-filter="pending">to review <b></b></button>
             <button data-filter="approved">stamped <b></b></button>
             <button data-filter="skipped">set aside <b></b></button>
-            <button data-filter="drafted">in gmail <b></b></button>
+            <button data-filter="sent">sent <b></b></button>
           </nav>
         </div>
 
@@ -195,11 +196,11 @@
                 <button class="ghost" id="act-undo">undo</button>
                 <button class="ghost" id="act-skip">set aside</button>
                 <button class="approve" id="act-approve">approve</button>
-                <span class="locked-note" id="act-locked">in gmail drafts</span>
+                <span class="locked-note" id="act-locked">sent</span>
               </div>
               <button class="round" id="next" aria-label="Next postcard">→</button>
             </div>
-            <button class="send" id="create-drafts">send to gmail</button>
+            <button class="send" id="create-drafts">approve to send</button>
           </div>
 
           <div class="strip-row">
@@ -234,7 +235,7 @@
       <!-- SETUP -->
       <section class="view" data-view="setup" hidden>
         <header class="view-head">
-          <h1 class="view-title">setup <span lang="hi">तैयारी</span></h1>
+          <h1 class="view-title">account <span lang="hi">खाता</span></h1>
         </header>
         <div class="setup-grid" id="setup"></div>
       </section>
