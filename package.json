@@ -1,8 +1,8 @@
 {
-  "name": "cold-mail-automation",
+  "name": "coldmail",
   "version": "0.1.0",
   "private": true,
-  "description": "coldmail: find the right people for a role, write each a personal email, and send from your Gmail.",
+  "description": "coldmail website: personal cold emails, hand-delivered. Google sign-in, Postgres, Claude research, send-only Gmail.",
   "type": "module",
   "engines": {
     "node": ">=22.9"
@@ -17,5 +17,11 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.14"
+  },
+  "license": "MIT",
+  "homepage": "https://coldmail-cpw0.onrender.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shataksha45-shiiii/Cold-Mail.git"
   }
 }
