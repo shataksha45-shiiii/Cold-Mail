@@ -14,6 +14,7 @@
     "find-emails": "node --env-file-if-exists=.env scripts/find-emails.js",
     "drafts": "node --env-file-if-exists=.env scripts/create-drafts.js",
     "review": "node --env-file-if-exists=.env server/review.js",
-    "merge": "node --env-file-if-exists=.env scripts/merge-contacts.js"
+    "merge": "node --env-file-if-exists=.env scripts/merge-contacts.js",
+    "helper": "node --env-file-if-exists=.env scripts/helper.js"
   }
 }

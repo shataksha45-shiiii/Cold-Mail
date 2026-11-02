@@ -21,6 +21,16 @@ You can still start a bundle from Claude Code instead: `/coldmail PM intern at e
 
 Check what's set up any time with `npm run status`, or open the **setup** tab.
 
+## Using it from a live website
+
+The `product` branch is a hosted version of this app (deploy guide in its `DEPLOY.md`). To keep your searches free there, connect this laptop as its helper:
+
+```bash
+npm run helper
+```
+
+It needs `COLDMAIL_URL` and `COLDMAIL_WORKER_TOKEN` in `.env`. While it runs, searches you start on the website run here with Claude Code and show up on the site when done.
+
 ## One-time setup
 
 ### 1. Node.js 22.9 or newer
@@ -64,6 +74,7 @@ Paste one or two cold emails you were happy with into `data/style-examples.md`. 
 | `npm run check -- <id>` | validate a campaign file |
 | `npm run merge -- <id> <file.json>` | add people to a bundle (or fill in their fields) without touching cards you've edited |
 | `npm run drafts -- <id>` | create drafts for approved contacts without the page |
+| `npm run helper` | connect this laptop to your hosted site so its searches run here |
 
 ## Privacy
 Everything stays on your laptop in `data/` (gitignored): resume, research, history, Google login. The review page only listens on your own machine.
