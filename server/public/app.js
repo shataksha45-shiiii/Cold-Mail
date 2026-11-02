@@ -707,6 +707,7 @@ function renderLanding() {
   const desk = $('#landing-desk');
   const params = new URLSearchParams(location.search);
   if (params.get('error') === 'login') toast('Sign-in didn’t complete. Please try again.', 'error');
+  if (params.get('error') === 'invite') toast('coldmail is invite-only for now. Ask the owner to add your email.', 'error');
   if (state.status.user) {
     start.href = '#/new';
     start.textContent = 'new bundle →';

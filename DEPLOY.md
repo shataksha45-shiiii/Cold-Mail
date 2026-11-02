@@ -1,68 +1,64 @@
-# Deploying coldmail
+# Deploying coldmail for free
 
-The hosted app lives on the `product` branch. (`main` is the original laptop version that runs on Claude Code.) Plan for about an hour, plus Google's review time.
+The hosted app lives on the `product` branch. (`main` is the laptop version that runs on Claude Code.) This setup costs $0:
 
-## What you need
-
-| Thing | Where | Cost |
+| Piece | Service | Notes |
 |---|---|---|
-| Render account | render.com (sign in with GitHub) | Web service ~$7/mo + Postgres ~$6/mo. Check Render's pricing page. |
-| Anthropic API key | console.anthropic.com → API Keys | Pay per use. Check the first few searches in the Console usage page. |
-| Google OAuth client | console.cloud.google.com (the same "Cold Mail" project works) | Free |
-| Hunter key (optional) | hunter.io/api-keys | Free tier: 50 searches/month, shared by all users |
-| Your own domain (for Google review) | any registrar | ~$10/yr |
+| Web app | Render free web service | No card. Sleeps after 15 min without visitors; the next visit takes ~1 min to wake. Keep the page open while a search runs. |
+| Database | Neon free Postgres | No card. |
+| Sign-in + Gmail | Google OAuth, "Testing" mode | Only test users you add (max 100) can sign in. No review or domain needed. |
+| Email lookup | Hunter free tier | 50 lookups/month, shared |
+| Searches | Claude API | **The only paid part.** Leave `ANTHROPIC_API_KEY` empty and searches stay off; add a key with credit any time to switch them on. |
 
-## 1. Create the app on Render
+Who can use it is controlled twice: Google's test-user list, and `ALLOWED_EMAILS` in the app.
 
-1. render.com → **New → Blueprint** → connect GitHub → pick **Cold-Mail**. Render reads `render.yaml` and proposes a web service `coldmail` (branch `product`) plus a database `coldmail-db`.
-2. It asks for the values marked `sync: false`. For now, fill in:
-   - `ANTHROPIC_API_KEY`: your key
+## 1. Database (Neon)
+
+1. neon.tech → sign up (GitHub works) → create a project named `coldmail`, in a region near you.
+2. On the project dashboard, click **Connect** and copy the **connection string** (`postgresql://...?sslmode=require`).
+
+## 2. Web app (Render)
+
+1. render.com → sign up with GitHub → allow access to **Cold-Mail**.
+2. **New → Blueprint** → **Cold-Mail**, branch **`product`** → Connect.
+3. Fill in:
+   - `DATABASE_URL`: the Neon connection string
+   - `ALLOWED_EMAILS`: your Gmail, plus anyone you invite (comma-separated)
+   - `ADMIN_EMAILS`: your Gmail
+   - `CONTACT_EMAIL`: shown on the privacy page
    - `HUNTER_API_KEY`: optional
-   - `ADMIN_EMAILS`: your Gmail (no monthly limit for you)
-   - `CONTACT_EMAIL`: the address shown on the privacy page
-   - `APP_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: leave blank for a minute
-3. **Apply.** When it's live, copy its address (like `https://coldmail-xxxx.onrender.com`) and set `APP_URL` to exactly that, with no trailing slash.
+   - Leave `APP_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `ANTHROPIC_API_KEY` empty for now
+4. **Apply**. When it says **Live**, copy the address (`https://coldmail-xxxx.onrender.com`), set `APP_URL` to it in **Environment** (no trailing slash), and save.
 
-`SESSION_SECRET` and `DATABASE_URL` are filled in automatically. The database tables are created on first start.
+## 3. Google sign-in
 
-## 2. Google sign-in and Gmail
+In console.cloud.google.com, in the same project you used for the laptop version:
 
-In console.cloud.google.com, in your Cold Mail project:
-
-1. **Google Auth Platform → Data access → Add or remove scopes**: add `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile` and `.../auth/gmail.send`.
-2. **Branding**: app name `coldmail`, support email, and app home page = your `APP_URL`, privacy policy = `APP_URL/privacy`, terms = `APP_URL/terms`. Add your domain under **Authorized domains**.
-3. **Clients → Create client → Web application**:
+1. **Google Auth Platform → Clients → Create client → Web application**:
    - Authorized JavaScript origins: your `APP_URL`
    - Authorized redirect URIs: `APP_URL/auth/google/callback`
-   - Create, then copy the client ID and secret into Render's `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Render redeploys.
-4. **Audience**: while the app is in **Testing**, only test users you add here (up to 100) can sign in. Add yourself and anyone trying it early.
+   - Copy the client ID and secret into Render's `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
+2. **Data access → Add or remove scopes**: add `openid`, `userinfo.email`, `userinfo.profile`, `gmail.send`.
+3. **Audience**: keep **Testing**, and add every person who'll use it as a **test user** (the same emails as `ALLOWED_EMAILS`).
+4. **Branding** (optional for testing): home page `APP_URL`, privacy `APP_URL/privacy`, terms `APP_URL/terms`.
 
-Open your `APP_URL`, sign in, upload a resume on the **account** page, connect Gmail, and run a small search (5 people) to check everything.
+Open `APP_URL`, sign in, upload your resume on the **account** page, and connect Gmail.
 
-## 3. Open it to everyone (Google review)
+## 4. Turning searches on (when you're ready)
 
-Sign-in with basic profile scopes needs no review. The **Gmail send** permission does: until Google approves it, only your test users can connect Gmail.
+console.anthropic.com → Billing → add credit → API Keys → create a key → paste it into Render as `ANTHROPIC_API_KEY`. Keep `MONTHLY_RUN_LIMIT` low to control spend; admins have no limit.
 
-1. Put the app on a domain you own (Render → Settings → Custom Domains), update `APP_URL`, the OAuth client's origin and redirect URI, and verify the domain in Google Search Console.
-2. Google Auth Platform → **Audience → Publish app**, then submit for verification. Google asks for:
-   - why you need `gmail.send` (sending emails the user reviewed and approved, from their own account)
-   - a short screen recording: sign-in, connecting Gmail, approving a postcard and sending it
-   - the privacy policy link (it already includes the required Limited Use statement)
-3. Review usually takes days to a few weeks. Google may ask follow-up questions by email.
+## Inviting someone
+
+Add their email to `ALLOWED_EMAILS` on Render **and** as a Google test user. Remove them from `ALLOWED_EMAILS` to sign them out for good.
 
 ## Running the hosted version locally
 
 ```bash
 git checkout product
 npm install
-cp .env.example .env   # fill in SESSION_SECRET, ANTHROPIC_API_KEY, GOOGLE_CLIENT_ID/SECRET
+cp .env.example .env   # fill in SESSION_SECRET and the Google client (add http://localhost:3000 to it)
 npm run dev
 ```
 
-Without `DATABASE_URL`, it uses a built-in database in `data/dev-db`. For Google sign-in locally, add `http://localhost:3000` and `http://localhost:3000/auth/google/callback` to the OAuth client.
-
-## Limits you can change (Render → Environment)
-
-- `MONTHLY_RUN_LIMIT` (3): searches per user per month. Accounts in `ADMIN_EMAILS` are unlimited.
-- `DAILY_SEND_LIMIT` (50): emails per user per day.
-- `MAX_CONCURRENT_RUNS` (3): searches running at once across all users.
+Without `DATABASE_URL`, it uses a built-in database in `data/dev-db`.
