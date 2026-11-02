@@ -866,6 +866,11 @@ function renderLanding() {
 async function init() {
   for (const slot of $$('.logo-slot')) slot.innerHTML = MOTIFS.lotus();
   decorate();
+  // A shareable link straight into the demo: https://<site>/?demo
+  if (new URLSearchParams(location.search).has('demo')) {
+    try { sessionStorage.setItem('demo', '1'); } catch { /* private mode */ }
+    history.replaceState(null, '', `${location.pathname}${location.hash || '#/desk'}`);
+  }
   try { state.demo = sessionStorage.getItem('demo') === '1'; } catch { /* private mode */ }
   $('#demo-bar').hidden = !state.demo;
   $('#exit-demo').onclick = exitDemo;
@@ -1012,6 +1017,10 @@ function renderNew() {
     : `Claude researches on the web, finds emails and writes each postcard. Takes 5–15 minutes. ${left} of ${u.limit} searches left this month.`;
   if (left === 0) { warn.hidden = false; warn.textContent = 'You have used all your searches for this month. They reset on the 1st.'; }
   const search = state.status.search || {};
+  // 20 people per search on the owner's laptop; 15 on the paid API.
+  const max = search.engine === 'laptop' ? 20 : 15;
+  for (const opt of $('#compose-count').options) opt.disabled = Number(opt.value) > max;
+  if (Number($('#compose-count').value) > max) $('#compose-count').value = String(max);
   if (search.engine === 'laptop') {
     $('.compose-note').textContent = search.helperOnline
       ? 'Runs on your laptop with Claude Code. Your laptop helper is online ✓. Takes 5–15 minutes.'

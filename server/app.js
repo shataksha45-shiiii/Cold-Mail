@@ -101,11 +101,16 @@ function cleanContact(raw) {
 async function helperRoute(req, res, pathname) {
   if (!isHelper(req)) throw new HttpError(401, 'Bad helper token');
   helperSeenAt = Date.now();
-  await repo.failSilentLaptopRuns();
 
   if (pathname === '/api/worker/next' && req.method === 'POST') {
+    // Idle checks are answered from memory, so the database can sleep between searches.
+    if (!jobs.laptopWork.pending) return send(res, 200, { run: null });
+    await repo.failSilentLaptopRuns();
     const claimed = await repo.claimLaptopRun();
-    if (!claimed) return send(res, 200, { run: null });
+    if (!claimed) {
+      jobs.laptopWork.pending = false;
+      return send(res, 200, { run: null });
+    }
     const { userId, run } = claimed;
     const user = await repo.getUser(userId);
     if (!user || !jobs.isAdmin(user)) throw new HttpError(403, 'Run does not belong to the owner');
