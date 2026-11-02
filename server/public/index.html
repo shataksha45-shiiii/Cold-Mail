@@ -248,6 +248,22 @@
 
   <div class="toast" id="toast" role="status" hidden></div>
 
+  <!-- Postcard pop-up for editing longer text (signature, voice) -->
+  <dialog class="editor" id="editor">
+    <form method="dialog" class="editor-card">
+      <div class="airmail" aria-hidden="true"></div>
+      <div class="editor-inner">
+        <p class="postcard-label"><span lang="hi" id="editor-hindi"></span><b id="editor-title"></b></p>
+        <p class="editor-hint" id="editor-hint"></p>
+        <textarea id="editor-text" rows="7" spellcheck="false"></textarea>
+        <div class="editor-actions">
+          <button class="acct-btn quiet" value="cancel" formnovalidate>cancel</button>
+          <button class="acct-btn ink" type="button" id="editor-save">save</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
   <template id="card-template">
     <article class="postcard">
       <div class="airmail" aria-hidden="true"></div>

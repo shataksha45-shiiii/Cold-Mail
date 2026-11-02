@@ -506,25 +506,37 @@ function updateContact(updated, { stamped = false } = {}) {
   layout();
 }
 
+// Approve / set aside / undo respond instantly; the server catches up in the background.
+// If it refuses (e.g. no valid email), the card is put back and you get a message.
 async function act(status) {
   const card = currentCard();
-  if (!card) return;
-  // Flush pending autosaves so the approved version is what gets sent.
+  const contact = currentContact();
+  if (!card || !contact) return;
+  // Include unsaved edits so the approved version is what gets sent.
   const pending = {};
   for (const field of ['email', 'subject', 'body']) {
     const el = $(`.${field}`, card);
-    if (el.saveTimer) { clearTimeout(el.saveTimer); el.saveTimer = null; pending[field] = el.value; }
+    if (el.saveTimer) { clearTimeout(el.saveTimer); el.saveTimer = null; }
+    if (el.value !== (contact[field] || '')) pending[field] = el.value;
   }
-  let updated;
-  try {
-    updated = await api(`/api/campaigns/${state.campaign.id}/contacts/${card.dataset.id}`, { method: 'PATCH', body: { ...pending, status } });
-  } catch (err) {
-    toast(err.message, 'error');
+  const email = pending.email ?? contact.email;
+  if (status === 'approved' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '')) {
+    toast('Add a valid email before approving', 'error');
     return;
   }
+  const before = { ...contact };
   const stays = state.filter === 'all' || state.filter === status;
-  updateContact(updated, { stamped: status === 'approved' });
-  if (status === 'pending') return;
+  updateContact({ ...contact, ...pending, status }, { stamped: status === 'approved' });
+
+  const request = api(`/api/campaigns/${state.campaign.id}/contacts/${contact.id}`, { method: 'PATCH', body: { ...pending, status } })
+    .then((saved) => mergeContact(saved))
+    .catch((err) => {
+      toast(err.message, 'error');
+      mergeContact(before);
+      renderDeskHead();
+      renderDeck();
+    });
+  if (status === 'pending') return request;
 
   // Let the postmark land, then turn the page.
   setTimeout(() => {
@@ -532,7 +544,7 @@ async function act(status) {
       go(state.index + 1);
       return;
     }
-    const el = $(`#deck .postcard[data-id="${updated.id}"]`);
+    const el = $(`#deck .postcard[data-id="${contact.id}"]`);
     if (el) el.dataset.pos = 'gone';
     setTimeout(() => {
       el?.remove();
@@ -542,7 +554,8 @@ async function act(status) {
       $('#desk-empty').hidden = filtered().length > 0;
       layout();
     }, 450);
-  }, status === 'approved' ? 750 : 250);
+  }, status === 'approved' ? 700 : 220);
+  return request;
 }
 
 async function loadCampaign(id) {
@@ -618,51 +631,85 @@ async function renderLedger() {
 }
 
 // ---------- Account ----------
-function stampTile(i, ok, title, state, mark) {
-  const el = document.createElement('div');
-  el.className = `setup-item ${ok ? 'on' : 'off'}`;
-  paint(el, i);
-  el.style.setProperty('--r', `${[-3, 2, -1.5, 3, -2, 1.5, -2.5][i % 7]}deg`);
-  el.innerHTML = `<div class="setup-stamp"><div class="art"><small><span lang="hi">भारत</span> INDIA</small>${motifFor(i)}<b>${VALUES[i % VALUES.length]}</b></div></div>
-    ${ok ? `<div class="setup-mark">${postmarkSvg(mark || 'READY', stampDate(), { waves: false })}</div>` : ''}
-    <h3></h3><p class="hint"></p>`;
-  $('h3', el).textContent = title;
-  const em = document.createElement('em');
-  em.textContent = state;
-  $('h3', el).append(em);
-  return el;
+// Each setting is a small paper postcard: red label, a perforated stamp, a pink postmark
+// when it's ready, a short note and one action. Long text (signature, voice) opens in a
+// postcard pop-up instead of sitting open on the page.
+function accountCard({ i, title, hindi, ok, status, note }) {
+  const card = document.createElement('article');
+  card.className = `acct-card ${ok ? 'on' : 'off'}`;
+  paint(card, i);
+  card.style.setProperty('--tilt', `${[-0.8, 0.6, -0.4, 0.7, -0.6, 0.5, -0.7][i % 7]}deg`);
+  card.innerHTML = `
+    <header class="acct-top">
+      <p class="postcard-label"><span lang="hi"></span><b></b></p>
+      <div class="stamp acct-stamp"><div class="stamp-art"><small class="stamp-country"><span lang="hi">भारत</span> INDIA</small><span class="stamp-motif">${motifFor(i)}</span><b class="stamp-value">${VALUES[i % VALUES.length]}</b></div></div>
+      ${ok ? `<div class="acct-mark" aria-hidden="true">${postmarkSvg('READY', stampDate(), { waves: false })}</div>` : ''}
+    </header>
+    <p class="acct-status"><i></i><span></span></p>
+    <p class="acct-note"></p>
+    <div class="acct-body"></div>
+    <footer class="acct-actions"></footer>`;
+  $('.postcard-label span', card).textContent = hindi;
+  $('.postcard-label b', card).textContent = title;
+  $('.acct-status span', card).textContent = status;
+  $('.acct-note', card).textContent = note;
+  return card;
 }
 
-function editor(value, placeholder, label, save) {
-  const box = document.createElement('div');
-  box.className = 'sig-edit';
-  box.innerHTML = '<textarea rows="4" spellcheck="false"></textarea><button class="ghost" type="button"></button>';
-  $('textarea', box).value = value || '';
-  $('textarea', box).placeholder = placeholder;
-  $('button', box).textContent = label;
-  $('button', box).onclick = async () => {
+function actionButton(label, onClick, kind = 'ink') {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = `acct-btn ${kind}`;
+  b.textContent = label;
+  b.onclick = onClick;
+  return b;
+}
+
+function preview(text, empty) {
+  const p = document.createElement('pre');
+  p.className = `acct-preview${text ? '' : ' empty'}`;
+  p.textContent = text || empty;
+  return p;
+}
+
+// Postcard pop-up for editing longer text.
+function openEditor({ title, hindi, value, placeholder, hint, save }) {
+  const dialog = $('#editor');
+  $('#editor-hindi').textContent = hindi;
+  $('#editor-title').textContent = title;
+  $('#editor-hint').textContent = hint;
+  const area = $('#editor-text');
+  area.value = value || '';
+  area.placeholder = placeholder;
+  $('#editor-save').onclick = async () => {
     try {
-      await save($('textarea', box).value);
+      await save(area.value);
+      dialog.close();
       toast('Saved.', 'good');
+      renderSetup();
     } catch (err) {
       toast(err.message, 'error');
     }
   };
-  return box;
+  dialog.showModal();
+  area.focus();
 }
 
 function renderSetup() {
   const s = state.status;
-  const tiles = [];
+  const cards = [];
 
-  // Resumes
-  const resume = stampTile(0, s.resumes.length > 0, 'resume', s.resumes.length ? 'ready' : 'missing');
-  $('.hint', resume).textContent = s.resumes.length ? 'Attached to your emails. Keep up to 5.' : 'Upload the PDF you send out.';
-  const list = document.createElement('ul');
-  list.className = 'file-list';
+  // Resume
+  const resume = accountCard({
+    i: 0, title: 'resume', hindi: 'बायोडाटा', ok: s.resumes.length > 0,
+    status: s.resumes.length ? `${s.resumes.length} on file` : 'none yet',
+    note: s.resumes.length ? 'Attached to your emails. Keep up to 5.' : 'Upload the PDF you send out.',
+  });
+  const files = document.createElement('ul');
+  files.className = 'acct-files';
   for (const r of s.resumes) {
     const li = document.createElement('li');
-    li.innerHTML = '<span></span><button type="button" class="linkish">remove</button>';
+    li.innerHTML = '<span></span><button type="button" class="acct-link">remove</button>';
     $('span', li).textContent = r.filename;
     $('button', li).onclick = async () => {
       if (!confirm(`Remove ${r.filename}?`)) return;
@@ -672,100 +719,126 @@ function renderSetup() {
         renderSetup();
       } catch (err) { toast(err.message, 'error'); }
     };
-    list.append(li);
+    files.append(li);
   }
+  if (s.resumes.length) $('.acct-body', resume).append(files);
   const upload = document.createElement('label');
-  upload.className = 'upload ghost';
+  upload.className = 'acct-btn ink';
   upload.innerHTML = `${s.resumes.length ? 'add another' : 'upload PDF'}<input type="file" accept="application/pdf,.pdf" hidden>`;
   $('input', upload).onchange = (e) => uploadResume(e.target.files[0]);
-  resume.append(list, upload);
-  tiles.push(resume);
+  $('.acct-actions', resume).append(upload);
+  cards.push(resume);
 
-  // Profile (parsed resume)
+  // Profile
   const ps = s.profile.status;
-  const profile = stampTile(1, ps === 'ready', 'profile', { ready: 'ready', parsing: 'reading…', failed: 'failed', none: 'waiting' }[ps]);
-  $('.hint', profile).textContent = {
-    ready: 'Claude has read your resume and uses it to match people.',
-    parsing: 'Claude is reading your resume. This takes a minute.',
-    failed: 'Couldn’t read that resume. Try uploading it again.',
-    none: 'Made from your resume when you upload it.',
-  }[ps];
-  tiles.push(profile);
+  cards.push(accountCard({
+    i: 1, title: 'profile', hindi: 'परिचय', ok: ps === 'ready',
+    status: { ready: 'read', parsing: 'reading…', failed: 'couldn’t read', none: 'waiting' }[ps],
+    note: {
+      ready: 'Claude has read your resume and uses it to match people.',
+      parsing: 'Claude is reading your resume. This takes a minute.',
+      failed: 'That resume couldn’t be read. Try uploading it again.',
+      none: 'Made from your resume on your first search.',
+    }[ps],
+  }));
 
   // Gmail
-  const gmail = stampTile(2, s.gmail.connected, 'gmail', s.gmail.connected ? 'connected' : 'not connected', 'LINKED');
-  $('.hint', gmail).textContent = s.gmail.connected
-    ? `Emails you approve are sent from ${s.gmail.email}. coldmail can only send; it can’t read your inbox.`
-    : 'Connect so approved postcards can be sent from your Gmail. coldmail can only send; it can’t read your inbox.';
-  const gbtn = document.createElement(s.gmail.connected ? 'button' : 'a');
-  gbtn.className = s.gmail.connected ? 'ghost upload' : 'send upload';
-  gbtn.textContent = s.gmail.connected ? 'disconnect' : 'connect gmail →';
+  const gmail = accountCard({
+    i: 2, title: 'gmail', hindi: 'जीमेल', ok: s.gmail.connected,
+    status: s.gmail.connected ? 'connected' : 'not connected',
+    note: s.gmail.connected
+      ? `Approved postcards are sent from ${s.gmail.email}. Send-only: coldmail can’t read your inbox.`
+      : 'Connect so approved postcards can be sent from your Gmail. Send-only: coldmail can’t read your inbox.',
+  });
   if (s.gmail.connected) {
-    gbtn.type = 'button';
-    gbtn.onclick = async () => {
+    $('.acct-actions', gmail).append(actionButton('disconnect', async () => {
       if (!confirm('Disconnect Gmail? You can connect it again any time.')) return;
       await api('/api/gmail/disconnect', { method: 'POST', body: {} });
       state.status = await api('/api/me');
       renderSetup();
       renderSidebar();
-    };
+    }, 'quiet'));
   } else {
-    gbtn.href = '/auth/gmail';
+    const a = document.createElement('a');
+    a.className = 'acct-btn rani';
+    a.href = state.demo ? '#/setup' : '/auth/gmail';
+    a.textContent = 'connect gmail →';
+    $('.acct-actions', gmail).append(a);
   }
-  gmail.append(gbtn);
-  tiles.push(gmail);
+  cards.push(gmail);
+
+  // Laptop helper (owner only)
+  if (s.search?.engine === 'laptop') {
+    const on = s.search.helperOnline;
+    cards.push(accountCard({
+      i: 3, title: 'laptop helper', hindi: 'सहायक', ok: on,
+      status: on ? 'online' : 'offline',
+      note: on ? 'Your laptop is connected. Searches run there with Claude Code.' : 'Searches run on your laptop. Run “npm run helper” in the coldmail folder to connect it.',
+    }));
+  }
 
   // Searches this month
   const u = s.usage;
   const left = u.limit === null ? null : Math.max(0, u.limit - u.used);
-  const usage = stampTile(3, left !== 0, 'searches', left === null ? 'unlimited' : `${left} left`, 'MONTHLY');
-  $('.hint', usage).textContent = left === null ? 'No monthly limit on this account.' : `${u.used} of ${u.limit} used this month. Resets on the 1st.`;
-  tiles.push(usage);
-
-  // Laptop helper (only for the owner, whose searches run on their laptop)
-  if (s.search?.engine === 'laptop') {
-    const on = s.search.helperOnline;
-    const helper = stampTile(6, on, 'laptop helper', on ? 'online' : 'offline', 'ONLINE');
-    $('.hint', helper).textContent = on
-      ? 'Your laptop is connected. Searches run there with Claude Code, on your Claude plan.'
-      : 'Searches run on your laptop. Open the coldmail folder and run “npm run helper” to connect it.';
-    tiles.push(helper);
-  }
+  cards.push(accountCard({
+    i: 4, title: 'searches', hindi: 'खोज', ok: left !== 0,
+    status: left === null ? 'unlimited' : `${left} of ${u.limit} left`,
+    note: left === null ? 'No monthly limit on this account.' : `Resets on the 1st of every month.`,
+  }));
 
   // Signature
-  const sig = stampTile(4, Boolean(s.profile.signature), 'signature', s.profile.signature ? 'ready' : 'empty');
-  $('.hint', sig).textContent = 'Added under every email, exactly as written.';
-  sig.append(editor(s.profile.signature, 'Your name\nPhone · email\nLinkedIn: https://…', 'save signature', async (value) => {
-    await api('/api/profile', { method: 'PATCH', body: { signature: value } });
-    state.status.profile.signature = value.trim();
-  }));
-  tiles.push(sig);
+  const sig = accountCard({
+    i: 5, title: 'signature', hindi: 'हस्ताक्षर', ok: Boolean(s.profile.signature),
+    status: s.profile.signature ? 'set' : 'empty', note: 'Added under every email, exactly as written.',
+  });
+  $('.acct-body', sig).append(preview(s.profile.signature, 'No signature yet.'));
+  $('.acct-actions', sig).append(actionButton(s.profile.signature ? 'edit' : 'add signature', () => openEditor({
+    title: 'signature', hindi: 'हस्ताक्षर', value: s.profile.signature,
+    placeholder: 'Your name\nPhone · email\nLinkedIn: https://…',
+    hint: 'Goes under every email exactly as you write it. Include the links you want people to click.',
+    save: async (value) => {
+      await api('/api/profile', { method: 'PATCH', body: { signature: value } });
+      state.status.profile.signature = value.trim();
+    },
+  })));
+  cards.push(sig);
 
   // Voice
-  const voice = stampTile(5, Boolean(s.style), 'your voice', s.style ? 'set' : 'optional');
-  $('.hint', voice).textContent = 'Paste one or two cold emails you liked. Claude matches their tone.';
-  voice.append(editor(s.style, 'Hi Priya, I read your post on…', 'save examples', async (value) => {
-    await api('/api/profile', { method: 'PATCH', body: { style: value } });
-    state.status.style = value.trim();
-  }));
-  tiles.push(voice);
+  const voice = accountCard({
+    i: 6, title: 'your voice', hindi: 'आपकी शैली', ok: Boolean(s.style),
+    status: s.style ? 'set' : 'optional', note: 'Example emails you liked. Claude matches their tone.',
+  });
+  $('.acct-body', voice).append(preview(s.style, 'No examples yet.'));
+  $('.acct-actions', voice).append(actionButton(s.style ? 'edit' : 'add examples', () => openEditor({
+    title: 'your voice', hindi: 'आपकी शैली', value: s.style,
+    placeholder: 'Hi Priya, I read your post on…',
+    hint: 'Paste one or two cold emails you were happy with. Claude copies their tone, not their words.',
+    save: async (value) => {
+      await api('/api/profile', { method: 'PATCH', body: { style: value } });
+      state.status.style = value.trim();
+    },
+  })));
+  cards.push(voice);
 
-  // Account actions
-  const acct = document.createElement('div');
-  acct.className = 'account-actions';
-  acct.innerHTML = '<p class="hint"></p><div><button class="ghost" type="button" id="sign-out">sign out</button><button class="ghost danger" type="button" id="delete-account">delete my account and data</button></div><p class="legal"><a href="/privacy">privacy</a> · <a href="/terms">terms</a></p>';
-  $('.hint', acct).textContent = `Signed in as ${s.user.email}`;
-  $('#sign-out', acct).onclick = async () => {
+  // Account receipt
+  const receipt = document.createElement('div');
+  receipt.className = 'acct-receipt';
+  receipt.innerHTML = `<p><span class="mono">signed in as</span> <b></b></p>
+    <div><button class="acct-btn quiet" type="button" id="sign-out">sign out</button>
+    <button class="acct-btn danger" type="button" id="delete-account">delete account</button></div>
+    <p class="legal"><a href="/privacy">privacy</a> · <a href="/terms">terms</a></p>`;
+  $('b', receipt).textContent = s.user.email;
+  $('#sign-out', receipt).onclick = async () => {
     await api('/auth/logout', { method: 'POST', body: {} });
     location.href = '/';
   };
-  $('#delete-account', acct).onclick = async () => {
+  $('#delete-account', receipt).onclick = async () => {
     if (!confirm('Delete your account? This removes your resumes, bundles and history for good, and disconnects Gmail.')) return;
     await api('/api/account', { method: 'DELETE' });
     location.href = '/';
   };
 
-  $('#setup').replaceChildren(...tiles, acct);
+  $('#setup').replaceChildren(...cards, receipt);
 }
 
 // Landing page call-to-action depends on whether you're signed in.
@@ -1021,7 +1094,9 @@ async function pollRun() {
     toast(run.status === 'done' ? doneText : `Run ${run.status}.`, run.status === 'done' ? 'good' : 'error');
   }
   if (state.view === 'desk') $('#more-btn').disabled = isLive(run);
-  if (state.view === 'new') renderNew();
+  const key = run ? JSON.stringify([run.id, run.status, run.phase, run.events?.length, run.lastNote, run.summary, state.status?.search?.helperOnline]) : '';
+  if (state.view === 'new' && key !== state.runKey) renderNew();
+  state.runKey = key;
   if (run?.status === 'queued' && !state.demo) state.status = await api('/api/me').catch(() => state.status);
   if (isLive(run)) pollTimer = setTimeout(pollRun, run.status === 'queued' ? 5000 : 2000);
 }
