@@ -1,0 +1,108 @@
+{
+  "id": "demo",
+  "targetRole": "Product interns · dev-tools startups",
+  "searchPlan": "Sample bundle. Everyone in it is made up.",
+  "resumeFile": null,
+  "attachResume": true,
+  "createdAt": "2026-11-02T09:00:00.000Z",
+  "contacts": [
+    {
+      "id": "c1",
+      "name": "Priya Example",
+      "title": "Head of Product",
+      "company": "Example Labs",
+      "domain": "example.com",
+      "linkedin": null,
+      "whyRelevant": "Leads a three-person product team that ships the CLI and onboarding flows, and posts about hiring product interns.",
+      "hooks": [
+        "Wrote a post about cutting onboarding drop-off with a guided CLI setup",
+        "Team launched a public roadmap page last month"
+      ],
+      "sources": [
+        {
+          "url": "https://example.com/team",
+          "title": "Example Labs team page",
+          "note": "lists her as Head of Product"
+        },
+        {
+          "url": "https://example.com/blog/onboarding",
+          "title": "Onboarding post",
+          "note": "the CLI onboarding story"
+        }
+      ],
+      "email": "priya@example.com",
+      "emailStatus": "public",
+      "emailSourceUrl": "https://example.com/team",
+      "resumeHighlights": [
+        "Project: onboarding funnel teardown",
+        "Experience: PM fellowship user interviews"
+      ],
+      "subject": "Your CLI onboarding post + a PM intern ask",
+      "body": "Hi Priya,\n\nYour post on guiding new users through CLI setup stuck with me, especially the step where you cut the config questions from seven to two.\n\nI'm a final-year CS student who has been doing product work on the side. In my last project I mapped the signup funnel of a dev tool, ran 12 user interviews, and proposed two changes that the team shipped, lifting activation by 18%.\n\nWould you be open to a 15-minute chat about product internships at Example Labs? My resume is attached.\n\nThanks,",
+      "status": "approved"
+    },
+    {
+      "id": "c2",
+      "name": "Arjun Sample",
+      "title": "Security Engineering Lead",
+      "company": "Sample Security",
+      "domain": "example.org",
+      "linkedin": null,
+      "whyRelevant": "Runs the team building the product's threat-detection features and gave a talk on phishing detection.",
+      "hooks": [
+        "Gave a talk on detecting phishing pages with lightweight ML"
+      ],
+      "sources": [
+        {
+          "url": "https://example.org/talks",
+          "title": "Talk listing",
+          "note": "phishing detection talk"
+        }
+      ],
+      "email": "arjun@example.org",
+      "emailStatus": "guessed",
+      "emailSource": "pattern",
+      "emailDetail": "Unverified guess. Other patterns: arjun.sample@example.org, arjunsample@example.org",
+      "emailAlternates": [
+        "arjun.sample@example.org",
+        "arjunsample@example.org"
+      ],
+      "resumeHighlights": [
+        "Project: PhishGuard browser extension (security)"
+      ],
+      "subject": "Phishing detection: built something similar",
+      "body": "Hi Arjun,\n\nI watched your talk on catching phishing pages with lightweight models. The point about using page structure instead of URLs alone matched what I saw in my own project.\n\nI built PhishGuard, a browser extension that flags suspicious login pages using DOM features. It reached 94% precision on a 5,000-page test set and is used by about 200 students at my college.\n\nI'm looking for a product or security internship. Would you have 15 minutes to tell me whether your team takes interns? My resume is attached.\n\nThanks,",
+      "status": "pending"
+    },
+    {
+      "id": "c3",
+      "name": "Mei Placeholder",
+      "title": "Founder & CEO",
+      "company": "Placeholder AI",
+      "domain": null,
+      "linkedin": null,
+      "whyRelevant": "Founder of a seed-stage startup with no product hires yet. Founders at this stage usually hire interns directly.",
+      "hooks": [
+        "Recently announced a seed round and said they are hiring their first product person"
+      ],
+      "sources": [
+        {
+          "url": "https://example.net/news",
+          "title": "Funding announcement",
+          "note": "seed round, hiring plans"
+        }
+      ],
+      "email": null,
+      "emailStatus": "not_found",
+      "emailDetail": "No source, and no domain to guess from",
+      "resumeHighlights": [
+        "Experience: PM fellowship",
+        "Achievement: hackathon winner"
+      ],
+      "subject": "First product hire: an intern to start?",
+      "body": "Hi Mei,\n\nCongrats on the seed round. You mentioned you're looking for your first product person, so I wanted to make a small pitch: start with an intern.\n\nI've spent the past year doing hands-on product work: user interviews, writing specs, and shipping with engineers during a PM fellowship. I also won a 36-hour hackathon building an AI note-taking tool.\n\nIf useful, I'd love 15 minutes to hear what you need most right now. My resume is attached.\n\nThanks,",
+      "status": "pending"
+    }
+  ],
+  "updatedAt": "2026-11-02T10:46:41.790Z"
+}

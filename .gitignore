@@ -1,0 +1,19 @@
+# Secrets
+.env
+data/google-credentials.json
+data/google-token.json
+
+# Personal data (resume, research, email history)
+data/resume/*
+!data/resume/.gitkeep
+data/campaigns/*
+!data/campaigns/.gitkeep
+!data/campaigns/demo.json
+data/profile.json
+data/history.json
+data/runs/
+data/style-examples.md
+
+node_modules/
+*.tmp
+.DS_Store

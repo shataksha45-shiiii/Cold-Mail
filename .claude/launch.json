@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "review", "runtimeExecutable": "node", "runtimeArgs": ["--env-file-if-exists=.env", "server/review.js", "--no-open"], "port": 3000 }
+  ]
+}
