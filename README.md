@@ -15,6 +15,12 @@ This is the **hosted, multi-user version** (`product` branch): Google sign-in, a
 4. **desk**: flip through the postcards, edit, **approve** or **set aside**. **+ add people** finds more for the same bundle.
 5. Connect Gmail once (send-only permission), then **send**. Each email goes out from your account with your resume attached and your signature added.
 
+## Searches
+
+- **The owner's searches** run on the owner's laptop: a small helper (`npm run helper` on the `main` branch) picks them up and runs them with Claude Code. Free, but the laptop must be on during a search.
+- **Invited users' searches** run on the Claude API if `ANTHROPIC_API_KEY` is set; otherwise they're off.
+- **Visitors** get a demo with made-up people; searching and sending are switched off.
+
 ## Limits
 
 Per user: 3 searches a month and 50 emails a day by default (configurable). Nothing is ever sent without the user approving it.

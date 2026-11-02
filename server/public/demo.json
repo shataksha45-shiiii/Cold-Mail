@@ -1,0 +1,254 @@
+{
+  "me": {
+    "user": {
+      "email": "you@demo.coldmail",
+      "name": "Demo visitor",
+      "picture": ""
+    },
+    "gmail": {
+      "connected": true,
+      "email": "you@demo.coldmail"
+    },
+    "search": {
+      "engine": "off",
+      "helperOnline": false
+    },
+    "usage": {
+      "used": 1,
+      "limit": 3
+    },
+    "hunter": false,
+    "resumes": [
+      {
+        "id": 1,
+        "filename": "demo_resume.pdf"
+      }
+    ],
+    "profile": {
+      "status": "ready",
+      "name": "Demo visitor",
+      "signature": "Demo Visitor\n+91 00000 00000 · you@demo.coldmail\nLinkedIn: linkedin.com/in/demo"
+    },
+    "style": ""
+  },
+  "campaign": {
+    "id": "demo",
+    "targetRole": "Product interns · dev-tools & fintech startups",
+    "searchPlan": "Sample bundle. Everyone in it is made up.",
+    "resumeFile": null,
+    "attachResume": true,
+    "createdAt": "2026-11-02T09:00:00.000Z",
+    "contacts": [
+      {
+        "id": "c1",
+        "name": "Priya Example",
+        "title": "Head of Product",
+        "company": "Example Labs",
+        "domain": "example.com",
+        "linkedin": null,
+        "whyRelevant": "Leads a three-person product team that ships the CLI and onboarding flows, and posts about hiring product interns.",
+        "hooks": [
+          "Wrote a post about cutting onboarding drop-off with a guided CLI setup",
+          "Team launched a public roadmap page last month"
+        ],
+        "sources": [
+          {
+            "url": "https://example.com/team",
+            "title": "Example Labs team page",
+            "note": "lists her as Head of Product"
+          },
+          {
+            "url": "https://example.com/blog/onboarding",
+            "title": "Onboarding post",
+            "note": "the CLI onboarding story"
+          }
+        ],
+        "email": "priya@example.com",
+        "emailStatus": "public",
+        "emailSourceUrl": "https://example.com/team",
+        "resumeHighlights": [
+          "Project: onboarding funnel teardown",
+          "Experience: PM fellowship user interviews"
+        ],
+        "subject": "Your CLI onboarding post + a PM intern ask",
+        "body": "Hi Priya,\n\nYour post on guiding new users through CLI setup stuck with me, especially the step where you cut the config questions from seven to two.\n\nI'm a final-year CS student who has been doing product work on the side. In my last project I mapped the signup funnel of a dev tool, ran 12 user interviews, and proposed two changes that the team shipped, lifting activation by 18%.\n\nWould you be open to a 15-minute chat about product internships at Example Labs? My resume is attached.\n\nThanks,",
+        "status": "approved"
+      },
+      {
+        "id": "c2",
+        "name": "Arjun Sample",
+        "title": "Security Engineering Lead",
+        "company": "Sample Security",
+        "domain": "example.org",
+        "linkedin": null,
+        "whyRelevant": "Runs the team building the product's threat-detection features and gave a talk on phishing detection.",
+        "hooks": [
+          "Gave a talk on detecting phishing pages with lightweight ML"
+        ],
+        "sources": [
+          {
+            "url": "https://example.org/talks",
+            "title": "Talk listing",
+            "note": "phishing detection talk"
+          }
+        ],
+        "email": "arjun@example.org",
+        "emailStatus": "guessed",
+        "emailSource": "pattern",
+        "emailDetail": "Unverified guess. Other patterns: arjun.sample@example.org, arjunsample@example.org",
+        "emailAlternates": [
+          "arjun.sample@example.org",
+          "arjunsample@example.org"
+        ],
+        "resumeHighlights": [
+          "Project: PhishGuard browser extension (security)"
+        ],
+        "subject": "Phishing detection: built something similar",
+        "body": "Hi Arjun,\n\nI watched your talk on catching phishing pages with lightweight models. The point about using page structure instead of URLs alone matched what I saw in my own project.\n\nI built PhishGuard, a browser extension that flags suspicious login pages using DOM features. It reached 94% precision on a 5,000-page test set and is used by about 200 students at my college.\n\nI'm looking for a product or security internship. Would you have 15 minutes to tell me whether your team takes interns? My resume is attached.\n\nThanks,",
+        "status": "pending"
+      },
+      {
+        "id": "c3",
+        "name": "Mei Placeholder",
+        "title": "Founder & CEO",
+        "company": "Placeholder AI",
+        "domain": "example.net",
+        "linkedin": null,
+        "whyRelevant": "Founder of a seed-stage startup with no product hires yet. Founders at this stage usually hire interns directly.",
+        "hooks": [
+          "Recently announced a seed round and said they are hiring their first product person"
+        ],
+        "sources": [
+          {
+            "url": "https://example.net/news",
+            "title": "Funding announcement",
+            "note": "seed round, hiring plans"
+          }
+        ],
+        "email": "mei@example.net",
+        "emailStatus": "guessed",
+        "emailDetail": "Unverified guess.",
+        "resumeHighlights": [
+          "Experience: PM fellowship",
+          "Achievement: hackathon winner"
+        ],
+        "subject": "First product hire: an intern to start?",
+        "body": "Hi Mei,\n\nCongrats on the seed round. You mentioned you're looking for your first product person, so I wanted to make a small pitch: start with an intern.\n\nI've spent the past year doing hands-on product work: user interviews, writing specs, and shipping with engineers during a PM fellowship. I also won a 36-hour hackathon building an AI note-taking tool.\n\nIf useful, I'd love 15 minutes to hear what you need most right now. My resume is attached.\n\nThanks,",
+        "status": "pending"
+      },
+      {
+        "id": "c4",
+        "name": "Tomas Sample",
+        "title": "Group Product Manager",
+        "company": "Lorem Payments",
+        "domain": "example.com",
+        "linkedin": null,
+        "whyRelevant": "Runs the checkout team and wrote about hiring product interns from engineering backgrounds.",
+        "hooks": [
+          "Wrote a post on cutting checkout steps from five to two"
+        ],
+        "sources": [
+          {
+            "url": "https://example.com/blog/checkout",
+            "title": "Checkout post",
+            "note": "the five-to-two story"
+          }
+        ],
+        "email": "tomas@example.com",
+        "emailStatus": "verified",
+        "emailSource": "hunter",
+        "emailDetail": "Hunter (score 96, valid)",
+        "resumeHighlights": [
+          "Project: onboarding funnel teardown"
+        ],
+        "subject": "Five checkout steps to two",
+        "body": "Hi Tomas,\n\nYour post on taking checkout from five steps to two was a great read, especially the part about removing the address re-entry.\n\nI'm a final-year CS student doing product work on the side. I recently mapped a dev tool's signup funnel, ran 12 user interviews and proposed two changes that lifted activation by 18%.\n\nIs your team taking product interns this season? A 15-minute chat would mean a lot. My resume is attached.\n\nThanks,",
+        "status": "sent",
+        "sentAt": "2026-11-01T10:20:00.000Z"
+      },
+      {
+        "id": "c5",
+        "name": "Asha Placeholder",
+        "title": "Head of Design",
+        "company": "Ipsum Health",
+        "domain": "example.org",
+        "linkedin": null,
+        "whyRelevant": "Leads a small design and product team that ships the patient app; posts about mentoring juniors.",
+        "hooks": [
+          "Gave a talk on designing for low-literacy users"
+        ],
+        "sources": [
+          {
+            "url": "https://example.org/talks",
+            "title": "Talk page",
+            "note": "low-literacy design talk"
+          }
+        ],
+        "email": "asha@example.org",
+        "emailStatus": "likely",
+        "emailSource": "apollo",
+        "emailDetail": "Apollo (email_status: unverified)",
+        "resumeHighlights": [
+          "Experience: PM fellowship user interviews"
+        ],
+        "subject": "Your low-literacy design talk",
+        "body": "Hi Asha,\n\nYour talk on designing for low-literacy users changed how I write onboarding copy. Swapping text for icon-plus-voice prompts was a smart move.\n\nI'm a CS student who has done hands-on product work: user interviews, specs and shipping with engineers during a PM fellowship.\n\nWould you be open to a quick chat about product internships at Ipsum Health? My resume is attached.\n\nThanks,",
+        "status": "pending",
+        "addedAt": "2026-11-02T09:30:00.000Z"
+      }
+    ],
+    "updatedAt": "2026-11-02T10:46:41.790Z",
+    "resumeId": 1,
+    "resolvedResume": 1
+  },
+  "history": [
+    {
+      "name": "Tomas Sample",
+      "company": "Lorem Payments",
+      "email": "tomas@example.com",
+      "subject": "Five checkout steps to two",
+      "campaignId": "demo",
+      "sentAt": "2026-11-01T10:20:00.000Z",
+      "draftedAt": "2026-11-01T10:20:00.000Z"
+    }
+  ],
+  "run": {
+    "id": "demo-run",
+    "engine": "off",
+    "mode": "new",
+    "target": "Product interns · dev-tools & fintech startups",
+    "count": 5,
+    "campaignId": "demo",
+    "status": "done",
+    "phase": "done",
+    "startedAt": "2026-11-02T09:00:00.000Z",
+    "endedAt": "2026-11-02T09:08:00.000Z",
+    "summary": "**5 people** found.\nEmails: 1 found publicly, 2 from Apollo/Hunter, 2 guessed, 0 missing.\n\nThis is a demo run: everyone here is made up.",
+    "events": [
+      {
+        "at": "2026-11-02T09:00:05.000Z",
+        "text": "reading your resume"
+      },
+      {
+        "at": "2026-11-02T09:01:10.000Z",
+        "text": "searching “dev-tools startups hiring product interns”"
+      },
+      {
+        "at": "2026-11-02T09:02:00.000Z",
+        "text": "reading example.com"
+      },
+      {
+        "at": "2026-11-02T09:03:30.000Z",
+        "text": "found Priya Example (Example Labs)"
+      },
+      {
+        "at": "2026-11-02T09:05:00.000Z",
+        "text": "looking up email addresses"
+      },
+      {
+        "at": "2026-11-02T09:06:40.000Z",
+        "text": "writing postcards"
+      }
+    ]
+  }
+}

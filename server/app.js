@@ -1,6 +1,7 @@
 // Hosted, multi-user coldmail. Usage: npm start (needs the environment variables in .env.example).
 // Every API route is scoped to the signed-in user. Changes require the X-Coldmail header,
 // which only this page sends (other sites can't add it without a CORS preflight we never allow).
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -16,7 +17,7 @@ import { isValidEmail, normalizeEmail } from '../lib/store.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json; charset=utf-8' };
 const DAILY_SEND_LIMIT = Number(process.env.DAILY_SEND_LIMIT || 50);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -66,11 +67,118 @@ function findContact(campaign, contactId) {
   return contact;
 }
 
+// ---------- Laptop helper ----------
+// The site owner's laptop runs a helper (npm run helper on the main branch) that asks for queued
+// searches, runs them with Claude Code, and reports back. It authenticates with WORKER_TOKEN.
+let helperSeenAt = 0;
+const helperOnline = () => Date.now() - helperSeenAt < 90_000;
+
+function isHelper(req) {
+  const expected = process.env.WORKER_TOKEN;
+  const given = (req.headers.authorization || '').replace(/^Bearer /, '');
+  if (!expected || expected.length < 32 || !given) return false;
+  const a = crypto.createHash('sha256').update(given).digest();
+  const b = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+const CONTACT_FIELDS = ['name', 'title', 'company', 'domain', 'linkedin', 'whyRelevant', 'hooks', 'sources', 'email', 'emailStatus',
+  'emailSourceUrl', 'emailSource', 'emailDetail', 'emailAlternates', 'emailVerification', 'resumeHighlights', 'subject', 'body'];
+const EMAIL_STATUSES = ['public', 'verified', 'likely', 'manual', 'guessed', 'not_found'];
+
+function cleanContact(raw) {
+  const c = {};
+  for (const f of CONTACT_FIELDS) if (raw[f] !== undefined) c[f] = raw[f];
+  if (typeof c.name !== 'string' || typeof c.company !== 'string' || !c.name.trim() || !c.company.trim()) return null;
+  for (const f of ['hooks', 'resumeHighlights', 'emailAlternates']) c[f] = Array.isArray(c[f]) ? c[f].filter((x) => typeof x === 'string').slice(0, 10) : [];
+  c.sources = Array.isArray(c.sources) ? c.sources.filter((x) => x && typeof x.url === 'string' && /^https?:\/\//.test(x.url)).slice(0, 12) : [];
+  if (!EMAIL_STATUSES.includes(c.emailStatus)) c.emailStatus = isValidEmail(c.email) ? 'guessed' : 'not_found';
+  if (!isValidEmail(c.email)) c.email = null;
+  for (const f of ['subject', 'body', 'whyRelevant', 'title']) if (typeof c[f] !== 'string') c[f] = '';
+  return c;
+}
+
+async function helperRoute(req, res, pathname) {
+  if (!isHelper(req)) throw new HttpError(401, 'Bad helper token');
+  helperSeenAt = Date.now();
+  await repo.failSilentLaptopRuns();
+
+  if (pathname === '/api/worker/next' && req.method === 'POST') {
+    const claimed = await repo.claimLaptopRun();
+    if (!claimed) return send(res, 200, { run: null });
+    const { userId, run } = claimed;
+    const user = await repo.getUser(userId);
+    if (!user || !jobs.isAdmin(user)) throw new HttpError(403, 'Run does not belong to the owner');
+    const campaign = await repo.getCampaign(userId, run.campaignId);
+    const resume = await repo.getResume(userId, campaign.resumeId);
+    const history = await repo.listHistory(userId);
+    return send(res, 200, {
+      run,
+      campaign,
+      resume: { filename: resume.filename, data: resume.data.toString('base64') },
+      signature: user.signature,
+      style: user.style,
+      alreadyEmailed: history.map((h) => ({ name: h.name, company: h.company, email: h.email, sentAt: h.sentAt })),
+    });
+  }
+
+  const match = pathname.match(/^\/api\/worker\/runs\/([\w-]+)\/(progress|finish)$/);
+  if (!match || req.method !== 'POST') throw new HttpError(404, 'Not found');
+  const found = await repo.getRunAnyUser(match[1]);
+  if (!found || found.run.engine !== 'laptop' || found.run.status !== 'running') throw new HttpError(409, 'That search is no longer running');
+  const { userId, run } = found;
+  const body = await readJson(req);
+  const PHASES = ['resume', 'research', 'emails', 'writing', 'done'];
+
+  if (match[2] === 'progress') {
+    if (PHASES.includes(body.phase) && PHASES.indexOf(body.phase) > PHASES.indexOf(run.phase)) run.phase = body.phase;
+    if (Array.isArray(body.events)) run.events = body.events.slice(-200).map((e) => ({ at: String(e.at || ''), text: String(e.text || '').slice(0, 300) }));
+    if (typeof body.lastNote === 'string') run.lastNote = body.lastNote.slice(0, 400);
+    run.heartbeatAt = new Date().toISOString();
+    await repo.saveRun(userId, run);
+    return send(res, 200, { stop: Boolean(run.stopRequested) });
+  }
+
+  // finish: merge the people found into the bundle (under the row lock), then close the run.
+  let added = 0;
+  if (Array.isArray(body.contacts) && body.contacts.length) {
+    added = await repo.updateCampaign(userId, run.campaignId, (c) => {
+      const key = (x) => `${(x.name || '').trim().toLowerCase()}|${(x.company || '').trim().toLowerCase()}`;
+      const seen = new Set(c.contacts.map(key));
+      const seenEmails = new Set(c.contacts.map((x) => normalizeEmail(x.email)).filter(Boolean));
+      let n = 0;
+      for (const raw of body.contacts) {
+        const contact = cleanContact(raw);
+        if (!contact || seen.has(key(contact)) || (contact.email && seenEmails.has(normalizeEmail(contact.email)))) continue;
+        const max = c.contacts.reduce((m, x) => Math.max(m, Number(String(x.id).replace(/\D/g, '')) || 0), 0);
+        c.contacts.push({ ...contact, id: `c${max + 1}`, status: 'pending', ...(run.mode === 'more' ? { addedAt: new Date().toISOString() } : {}) });
+        seen.add(key(contact));
+        if (contact.email) seenEmails.add(normalizeEmail(contact.email));
+        n += 1;
+      }
+      if (!c.searchPlan && typeof body.searchPlan === 'string') c.searchPlan = body.searchPlan.slice(0, 1000);
+      return n;
+    });
+  }
+  const ok = body.status === 'done' && added > 0;
+  Object.assign(run, {
+    status: run.stopRequested ? 'stopped' : ok ? 'done' : 'failed',
+    phase: ok ? 'done' : run.phase,
+    summary: typeof body.summary === 'string' ? body.summary.slice(0, 4000) : '',
+    error: ok ? undefined : (typeof body.error === 'string' && body.error) || (added ? undefined : 'No new people were found.'),
+    endedAt: new Date().toISOString(),
+  });
+  if (!ok) await jobs.dropEmptyNewBundle(userId, run);
+  await repo.saveRun(userId, run);
+  return send(res, 200, { added });
+}
+
 // What the page needs to know about the signed-in user.
 async function me(user) {
   const resumes = await repo.listResumes(user.id);
   return {
     user: { email: user.email, name: user.name, picture: user.picture },
+    search: { engine: jobs.searchEngine(user), helperOnline: helperOnline() },
     gmail: { connected: Boolean(user.gmail_token), email: user.gmail_token ? user.email : null },
     usage: await jobs.usage(user),
     hunter: Boolean(process.env.HUNTER_API_KEY),
@@ -280,6 +388,7 @@ const server = http.createServer(async (req, res) => {
       return redirect(res, to, setCookies);
     }
 
+    if (pathname.startsWith('/api/worker/')) return await helperRoute(req, res, pathname);
     if (req.method !== 'GET' && req.headers['x-coldmail'] !== '1') throw new HttpError(403, 'Forbidden');
 
     if (pathname === '/auth/logout' && req.method === 'POST') {

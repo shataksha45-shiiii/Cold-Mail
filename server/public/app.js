@@ -84,9 +84,66 @@ function paint(el, index) {
 const motifFor = (index) => MOTIFS[MOTIF_ORDER[index % MOTIF_ORDER.length]]();
 
 // ---------- State + API ----------
-const state = { status: null, campaigns: [], campaign: null, filter: 'all', index: 0, view: 'desk' };
+const state = { status: null, campaigns: [], campaign: null, filter: 'all', index: 0, view: 'desk', demo: false };
+const isLive = (run) => Boolean(run && ['running', 'queued'].includes(run.status));
+
+// ---------- Demo mode ----------
+// Visitors can explore with made-up people. Requests are answered here in the browser, from
+// demo.json; nothing reaches the server, and searching and sending are switched off.
+let demoData = null;
+const clone = (x) => JSON.parse(JSON.stringify(x));
+
+async function demoApi(path, options = {}) {
+  demoData ??= await (await fetch('/demo.json')).json();
+  const method = options.method || 'GET';
+  const body = options.body || {};
+  const camp = demoData.campaign;
+  const counts = () => Object.fromEntries(['pending', 'approved', 'skipped', 'sent'].map((s) => [s, camp.contacts.filter((x) => x.status === s).length]));
+  const off = (what) => { throw new Error(`${what} is switched off in the demo.`); };
+  let m;
+  if (path === '/api/me') return clone(demoData.me);
+  if (path === '/api/campaigns') return [{ id: camp.id, targetRole: camp.targetRole, createdAt: camp.createdAt, counts: counts() }];
+  if (path === '/api/history') return clone(demoData.history);
+  if (path === '/api/runs/latest') return clone(demoData.run);
+  if (path === '/api/runs') off('Searching');
+  if (path === '/auth/logout') return exitDemo();
+  if ((m = path.match(/^\/api\/campaigns\/[\w-]+\/contacts\/([\w-]+)$/)) && method === 'PATCH') {
+    const contact = camp.contacts.find((c) => c.id === m[1]);
+    if (contact.status === 'sent') throw new Error('Already sent.');
+    for (const f of ['subject', 'body']) if (typeof body[f] === 'string') contact[f] = body[f];
+    if (typeof body.email === 'string' && body.email !== contact.email) Object.assign(contact, { email: body.email, emailStatus: 'manual' });
+    if (body.status) {
+      if (body.status === 'approved' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email || '')) throw new Error('Add a valid email before approving');
+      contact.status = body.status;
+    }
+    return clone(contact);
+  }
+  if (/\/send$/.test(path)) off('Sending');
+  if (/\/verify$/.test(path)) off('Verifying emails');
+  if (path.startsWith('/api/campaigns/') && method === 'GET') return clone(camp);
+  if (path.startsWith('/api/campaigns/') && method === 'PATCH') { Object.assign(camp, body); return { ok: true }; }
+  if (path === '/api/profile') {
+    if (typeof body.signature === 'string') demoData.me.profile.signature = body.signature;
+    if (typeof body.style === 'string') demoData.me.style = body.style;
+    return { ok: true };
+  }
+  off('That');
+}
+
+function enterDemo() {
+  try { sessionStorage.setItem('demo', '1'); } catch { /* private mode */ }
+  location.hash = '#/desk';
+  location.reload();
+}
+
+function exitDemo() {
+  try { sessionStorage.removeItem('demo'); } catch { /* private mode */ }
+  location.href = '/';
+  return new Promise(() => {});
+}
 
 async function api(path, options = {}) {
+  if (state.demo) return demoApi(path, options);
   const res = await fetch(path, {
     ...options,
     headers: { 'Content-Type': 'application/json', 'X-Coldmail': '1' },
@@ -665,6 +722,16 @@ function renderSetup() {
   $('.hint', usage).textContent = left === null ? 'No monthly limit on this account.' : `${u.used} of ${u.limit} used this month. Resets on the 1st.`;
   tiles.push(usage);
 
+  // Laptop helper (only for the owner, whose searches run on their laptop)
+  if (s.search?.engine === 'laptop') {
+    const on = s.search.helperOnline;
+    const helper = stampTile(6, on, 'laptop helper', on ? 'online' : 'offline', 'ONLINE');
+    $('.hint', helper).textContent = on
+      ? 'Your laptop is connected. Searches run there with Claude Code, on your Claude plan.'
+      : 'Searches run on your laptop. Open the coldmail folder and run “npm run helper” to connect it.';
+    tiles.push(helper);
+  }
+
   // Signature
   const sig = stampTile(4, Boolean(s.profile.signature), 'signature', s.profile.signature ? 'ready' : 'empty');
   $('.hint', sig).textContent = 'Added under every email, exactly as written.';
@@ -713,9 +780,12 @@ function renderLanding() {
     start.textContent = 'new bundle →';
     desk.hidden = false;
   } else {
-    start.href = '/auth/google';
-    start.textContent = 'sign in with Google →';
-    desk.hidden = true;
+    start.href = '#/desk';
+    start.textContent = 'explore the demo →';
+    start.onclick = (e) => { e.preventDefault(); enterDemo(); };
+    desk.hidden = false;
+    desk.href = '/auth/google';
+    desk.textContent = 'owner sign in';
   }
 }
 
@@ -723,6 +793,9 @@ function renderLanding() {
 async function init() {
   for (const slot of $$('.logo-slot')) slot.innerHTML = MOTIFS.lotus();
   decorate();
+  try { state.demo = sessionStorage.getItem('demo') === '1'; } catch { /* private mode */ }
+  $('#demo-bar').hidden = !state.demo;
+  $('#exit-demo').onclick = exitDemo;
   const status = await api('/api/me');
   state.status = status;
   renderLanding();
@@ -844,8 +917,11 @@ function dismissedRun() {
 
 function renderNew() {
   const run = state.run;
-  const showTracking = run && (run.status === 'running' || run.id !== dismissedRun());
-  $('#new-title').innerHTML = showTracking ? 'on its way <span lang="hi">रास्ते में</span>' : 'new bundle <span lang="hi">नया पुलिंदा</span>';
+  const showTracking = run && (isLive(run) || run.id !== dismissedRun());
+  $('#new-title').innerHTML = !showTracking ? 'new bundle <span lang="hi">नया पुलिंदा</span>'
+    : isLive(run) ? 'on its way <span lang="hi">रास्ते में</span>'
+      : run.status === 'done' ? 'delivered <span lang="hi">पहुँच गया</span>'
+        : 'returned <span lang="hi">लौट आया</span>';
   $('#compose').hidden = Boolean(showTracking);
   $('#tracking').hidden = !showTracking;
   if (showTracking) return renderTracking();
@@ -862,7 +938,17 @@ function renderNew() {
     ? 'Claude researches on the web, finds emails and writes each postcard. Takes 5–15 minutes.'
     : `Claude researches on the web, finds emails and writes each postcard. Takes 5–15 minutes. ${left} of ${u.limit} searches left this month.`;
   if (left === 0) { warn.hidden = false; warn.textContent = 'You have used all your searches for this month. They reset on the 1st.'; }
-  $('#compose-go').disabled = !resumes.length || left === 0;
+  const search = state.status.search || {};
+  if (search.engine === 'laptop') {
+    $('.compose-note').textContent = search.helperOnline
+      ? 'Runs on your laptop with Claude Code. Your laptop helper is online ✓. Takes 5–15 minutes.'
+      : 'Runs on your laptop with Claude Code. Your laptop helper is offline: the search will wait until you run “npm run helper”.';
+  }
+  if (search.engine === 'off') {
+    warn.hidden = false;
+    warn.textContent = state.demo ? 'Searching is switched off in the demo. Everything else works with made-up people.' : 'Searching is switched off on this site.';
+  }
+  $('#compose-go').disabled = !resumes.length || left === 0 || search.engine === 'off';
 }
 
 // Claude's summary uses a little markdown: escape everything, then allow **bold** and `code`.
@@ -875,22 +961,23 @@ let seenEvents = 0;
 function renderTracking() {
   const run = state.run;
   $('#track-target').textContent = run.target;
-  $('#track-kicker').textContent = run.mode === 'more' ? `speed post · adding ${run.count} more people` : 'speed post · tracking';
+  $('#track-kicker').textContent = run.status === 'queued' ? 'speed post · waiting for your laptop'
+    : run.mode === 'more' ? `speed post · adding ${run.count} more people` : 'speed post · tracking';
   const at = STEPS.findIndex(([key]) => key === run.phase);
   const route = $('#route');
   route.style.setProperty('--f', run.status === 'done' ? 1 : Math.max(0, at) / (STEPS.length - 1));
-  route.classList.toggle('finished', run.status !== 'running');
+  route.classList.toggle('finished', !isLive(run));
   $('#track-steps').replaceChildren(...STEPS.map(([key, label], i) => {
     const li = document.createElement('li');
     const done = i < at || run.status === 'done';
-    li.className = done ? 'done' : i === at && run.status === 'running' ? 'now' : '';
+    li.className = done ? 'done' : i === at && isLive(run) ? 'now' : '';
     if (run.status === 'failed' && i === at) li.className = 'failed';
     li.innerHTML = '<i></i><span></span>';
     $('span', li).textContent = label;
     return li;
   }));
-  $('#track-stop').hidden = run.status !== 'running';
-  const finished = run.status !== 'running';
+  $('#track-stop').hidden = !isLive(run);
+  const finished = !isLive(run);
   $('#track-done').hidden = !finished;
   if (finished) {
     const text = run.status === 'done' ? run.summary : run.status === 'stopped' ? 'Stopped.' : `Something went wrong: ${run.error}`;
@@ -900,7 +987,10 @@ function renderTracking() {
   const fresh = run.events.length - seenEvents;
   seenEvents = run.events.length;
   const events = run.events.slice(-14).reverse();
-  if (run.status === 'running' && run.lastNote) events.unshift({ at: '', text: run.lastNote, note: true });
+  if (run.status === 'queued') {
+    const online = state.status.search?.helperOnline;
+    events.unshift({ at: '', note: true, text: online ? 'Your laptop helper is online; it will pick this up in a few seconds.' : 'Waiting for your laptop. Turn it on and run “npm run helper” in the coldmail folder; this search starts as soon as it connects.' });
+  } else if (isLive(run) && run.lastNote) events.unshift({ at: '', text: run.lastNote, note: true });
   $('#track-log').replaceChildren(...events.map((e, i) => {
     const li = document.createElement('li');
     if (e.note) li.className = 'note';
@@ -916,10 +1006,10 @@ async function pollRun() {
   clearTimeout(pollTimer);
   let run;
   try { run = await api('/api/runs/latest'); } catch { return; }
-  const wasRunning = state.run?.status === 'running';
+  const wasRunning = isLive(state.run);
   state.run = run;
   renderSidebar();
-  if (wasRunning && run && run.status !== 'running') {
+  if (wasRunning && run && !isLive(run)) {
     [state.status, state.campaigns] = await Promise.all([api('/api/me'), api('/api/campaigns')]);
     if (run.status === 'done' && run.mode === 'more' && state.campaign?.id === run.campaignId) {
       const index = state.index;
@@ -930,9 +1020,10 @@ async function pollRun() {
     const doneText = run.mode === 'more' ? 'New people added to your bundle.' : 'Your new bundle is ready.';
     toast(run.status === 'done' ? doneText : `Run ${run.status}.`, run.status === 'done' ? 'good' : 'error');
   }
-  if (state.view === 'desk') $('#more-btn').disabled = run?.status === 'running';
+  if (state.view === 'desk') $('#more-btn').disabled = isLive(run);
   if (state.view === 'new') renderNew();
-  if (run?.status === 'running') pollTimer = setTimeout(pollRun, 2000);
+  if (run?.status === 'queued' && !state.demo) state.status = await api('/api/me').catch(() => state.status);
+  if (isLive(run)) pollTimer = setTimeout(pollRun, run.status === 'queued' ? 5000 : 2000);
 }
 
 $('#compose').addEventListener('submit', async (e) => {
@@ -990,13 +1081,13 @@ async function uploadResume(file) {
 function renderSidebar() {
   const s = state.status;
   if (!s) return;
-  const running = state.run?.status === 'running';
+  const running = isLive(state.run);
   $('#run-dot').hidden = !running;
   $('#setup-dot').hidden = Boolean(s.gmail.connected && s.resumes.length > 0);
   const side = $('#side-run');
   side.hidden = !running;
   if (running) {
-    $('span', side).textContent = state.run.mode === 'more' ? 'adding people…' : 'Claude is researching…';
+    $('span', side).textContent = state.run.status === 'queued' ? 'waiting for your laptop…' : state.run.mode === 'more' ? 'adding people…' : 'Claude is researching…';
     side.onclick = () => { location.hash = '#/new'; };
   }
   const u = s.usage;

@@ -13,7 +13,16 @@ flowchart TD
     A -->|gmail.send| G[User's Gmail]
 ```
 
-## A search, step by step
+## Where searches run
+
+`jobs.searchEngine(user)` decides:
+- **`laptop`** for the owner (`ADMIN_EMAILS`) when `WORKER_TOKEN` is set. The run is stored as `queued`. The helper on the owner's laptop (`scripts/helper.js` on `main`) polls `POST /api/worker/next` with the token, claims the run, runs the `/coldmail` playbook with Claude Code, posts progress to `/api/worker/runs/:id/progress` (which also carries "stop"), and uploads the people to `/finish`. The server cleans and merges them under the row lock. A helper that goes silent for 20 minutes fails the run.
+- **`api`** for anyone else when `ANTHROPIC_API_KEY` is set: the in-process pipeline below.
+- **`off`** otherwise.
+
+Visitors use demo mode: the page answers its own requests from `public/demo.json` and never calls the API.
+
+## A search on the API, step by step
 
 1. **Profile.** The resume PDF goes to Claude with a JSON schema and comes back as a structured profile (projects, experience, topic tags, signature). This is cached per resume.
 2. **Research.** An agent loop on `claude-opus-5-5` with Anthropic's server-side web search and web fetch, plus one tool of ours: `save_person`. Each call is checked (it must have a name, a company and a source URL, and must not be a duplicate or someone already emailed) and written into the bundle straight away. That's what drives the live tracker. People already in the bundle or already emailed are passed in as an exclusion list.

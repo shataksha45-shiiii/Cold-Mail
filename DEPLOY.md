@@ -8,9 +8,13 @@ The hosted app lives on the `product` branch. (`main` is the laptop version that
 | Database | Neon free Postgres | No card. |
 | Sign-in + Gmail | Google OAuth, "Testing" mode | Only test users you add (max 100) can sign in. No review or domain needed. |
 | Email lookup | Hunter free tier | 50 lookups/month, shared |
-| Searches | Claude API | **The only paid part.** Leave `ANTHROPIC_API_KEY` empty and searches stay off; add a key with credit any time to switch them on. |
+| Your searches | **Your laptop**, with Claude Code on your Claude plan | Free. Your laptop must be on with `npm run helper` running while a search runs; reviewing and sending work from anywhere. |
+| Other people's searches | Claude API | Off unless you add `ANTHROPIC_API_KEY` (paid). Visitors get the demo instead. |
 
-Who can use it is controlled twice: Google's test-user list, and `ALLOWED_EMAILS` in the app.
+**Who sees what**
+- **Visitors** click "explore the demo": made-up people, everything clickable, but searching and sending are switched off. Nothing they do reaches the server.
+- **You** click "owner sign in". Your searches run on your laptop.
+- Anyone else who signs in must be in `ALLOWED_EMAILS` and on Google's test-user list. Without an API key they can't search.
 
 ## 1. Database (Neon)
 
@@ -23,6 +27,7 @@ Who can use it is controlled twice: Google's test-user list, and `ALLOWED_EMAILS
 2. **New → Blueprint** → **Cold-Mail**, branch **`product`** → Connect.
 3. Fill in:
    - `DATABASE_URL`: the Neon connection string
+   - `WORKER_TOKEN` is generated for you; you'll copy it to your laptop in step 4
    - `ALLOWED_EMAILS`: your Gmail, plus anyone you invite (comma-separated)
    - `ADMIN_EMAILS`: your Gmail
    - `CONTACT_EMAIL`: shown on the privacy page
@@ -42,11 +47,28 @@ In console.cloud.google.com, in the same project you used for the laptop version
 3. **Audience**: keep **Testing**, and add every person who'll use it as a **test user** (the same emails as `ALLOWED_EMAILS`).
 4. **Branding** (optional for testing): home page `APP_URL`, privacy `APP_URL/privacy`, terms `APP_URL/terms`.
 
-Open `APP_URL`, sign in, upload your resume on the **account** page, and connect Gmail.
+Open `APP_URL`, click **owner sign in**, upload your resume on the **account** page, and connect Gmail. In "Testing" mode Google expires Gmail access after 7 days; the site asks you to reconnect when that happens.
 
-## 4. Turning searches on (when you're ready)
+## 4. Connect your laptop (your free searches)
 
-console.anthropic.com → Billing → add credit → API Keys → create a key → paste it into Render as `ANTHROPIC_API_KEY`. Keep `MONTHLY_RUN_LIMIT` low to control spend; admins have no limit.
+1. In Render → your service → **Environment**, copy the value of `WORKER_TOKEN` (Render generated it).
+2. On your laptop, in the coldmail folder on the **`main`** branch, add two lines to `.env`:
+   ```
+   COLDMAIL_URL=https://coldmail-xxxx.onrender.com
+   COLDMAIL_WORKER_TOKEN=<the WORKER_TOKEN value>
+   ```
+3. Run it, and leave it running:
+   ```bash
+   npm run helper
+   ```
+   It says "connected". Your account page shows **laptop helper: online**.
+4. Start a search on the site. The helper picks it up within ~15 seconds, runs it with Claude Code, and the site's tracker moves live. If your laptop is off, the search waits ("waiting for your laptop") and starts when the helper connects.
+
+The helper only ever talks to your site with that token. Anyone who has the token can pull your queued searches, so keep it secret like a password. If it leaks, change `WORKER_TOKEN` on Render and in your `.env`.
+
+## 5. Optional: searches for other people
+
+console.anthropic.com → Billing → add credit → API Keys → create a key → paste it into Render as `ANTHROPIC_API_KEY`. Invited users' searches then run on the API (paid); yours still run on your laptop. Keep `MONTHLY_RUN_LIMIT` low to control spend.
 
 ## Inviting someone
 

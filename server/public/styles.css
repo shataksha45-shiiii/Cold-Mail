@@ -872,3 +872,15 @@ body[data-view="home"] .toast { left: 50%; }
 .legal, .landing-legal { font-size: 13px; color: rgba(255, 255, 255, .5); }
 .legal a, .landing-legal a { color: inherit; }
 .landing-steps li.landing-legal { flex: 0 0 auto; padding-left: 20px; }
+
+/* Demo banner */
+.demo-bar {
+  position: sticky; top: 12px; z-index: 25; margin: 16px auto 0; max-width: 1180px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 8px 8px 8px 18px; border-radius: 999px;
+  background: rgba(255, 176, 0, .14); border: 1px solid rgba(255, 176, 0, .45); color: #ffd98a;
+  font-size: 13.5px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+.demo-bar b { color: var(--marigold); text-transform: uppercase; letter-spacing: .12em; font: 700 11px/1 var(--mono); }
+.demo-bar .ghost { padding: 7px 14px; font-size: 13px; }
+@media (max-width: 760px) { .demo-bar { border-radius: 16px; top: 8px; } }
