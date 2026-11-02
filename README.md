@@ -1,80 +1,142 @@
-# Cold Mail Automation
+<div align="center">
 
-Upload your resume, describe the role you want, and get personalised cold emails to the right people, sitting in your Gmail drafts with your resume attached. You review each one; you click send.
+# coldmail <sup>डाक</sup>
 
-Free to run: Claude Code (your Pro plan) does the research and writing; Gmail API, Apollo and Hunter free tiers do the rest. How it works: [ARCHITECTURE.md](ARCHITECTURE.md).
+**Personal cold emails, hand-delivered.**
+Upload your resume, name the role you want. coldmail finds the right people, writes each one a personal email that features the parts of your resume that match their work, and sends it from your own Gmail after you review it.
 
-## Use it
+**[▶ Try the live demo](https://coldmail-cpw0.onrender.com/?demo)** · [Website](https://coldmail-cpw0.onrender.com) · [How it works](#how-it-works) · [Run it yourself](#run-it-yourself)
+
+![coldmail desk: a stack of personalised postcards](docs/screenshots/desk.jpg)
+
+</div>
+
+## Why I built it
+
+Looking for a product-management internship, I hit the same wall every time. Finding the right people to email took hours, writing a genuinely personal email to each took longer, and then came copying, pasting and re-attaching my resume, one email at a time. Most "AI cold email" tools solve this by blasting generic messages. I wanted the opposite: fewer, better emails, each one about the person reading it, with me approving every word before it goes out.
+
+I use coldmail for my own outreach.
+
+## What it does
+
+1. **Reads your resume** into a structured profile: projects, experience and skills, each tagged by topic (security, fintech, ML, drones…).
+2. **Researches people** for the role you describe. It searches the web for hiring managers, team leads and founders, confirms they currently hold the role, and records **sources** and specific **hooks** for each (something they built, wrote or said).
+3. **Finds their email** in order of trust: written publicly on a page → Apollo → Hunter (verified) → name-pattern guess, each labelled so you know how sure it is.
+4. **Writes each email** around that person: it opens with their hook and features the 1–2 resume items closest to their work (your security project for the security lead, your growth result for the growth PM).
+5. **You review** every postcard on the desk: edit, approve or set aside.
+6. **Sends from your Gmail** with your resume attached and your signature added, and logs it so you never email the same person twice.
+
+Need more people for the same role? **+ add people** grows the bundle without touching anything you've already edited.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Landing page](docs/screenshots/landing.jpg) | ![Live search tracker](docs/screenshots/tracker.jpg) |
+| **Landing**: an Indian air-mail poster | **Tracker**: each search moves along a Speed Post route |
+| ![Bundles](docs/screenshots/bundles.jpg) | ![Ledger](docs/screenshots/ledger.jpg) |
+| **Bundles**: one stack of postcards per role | **Ledger (बही)**: everything you've sent |
+| ![Account](docs/screenshots/account.jpg) | <img src="docs/screenshots/mobile.jpg" alt="Phone view" width="260"> |
+| **Account**: every setting is a little postcard | **On a phone** |
+
+The design borrows from Indian picture postcards and stamps: air-mail stripes, "पोस्ट कार्ड" headers, perforated "भारत INDIA" stamps with folk motifs (rangoli, lotus, peacock feather, paisley, Warli), ink postmarks that land when you approve, and a book-style index to flip through people.
+
+## How it works
+
+```mermaid
+flowchart LR
+    subgraph Web["coldmail website (Render + Postgres)"]
+      UI[Desk · Bundles · Ledger · Account]
+      API[Node server<br/>Google sign-in · bundles · send]
+      Q[(Search queue)]
+    end
+    subgraph Laptop["Owner's laptop"]
+      H[Helper<br/>npm run helper]
+      CC[Claude Code<br/>/coldmail playbook]
+    end
+    UI --> API --> Q
+    H -- "picks up searches" --> Q
+    H --> CC
+    CC -- "web search & fetch" --> WEB[(Public web)]
+    CC -- "email lookup" --> HU[Apollo / Hunter]
+    H -- "progress + people + postcards" --> API
+    API -- "send-only Gmail API" --> G[Your Gmail]
+```
+
+- **The research is an AI agent.** Claude follows a written playbook: confirm each person from a real page, collect hooks and sources, never invent people, facts or emails. A validation script checks its output before anything reaches you.
+- **Searches run on the owner's laptop, and the website stays online.** Hosting the AI on a server costs money per search, so the website queues searches and a small helper on the laptop runs them with Claude Code, streaming progress back. Reviewing and sending work from anywhere, laptop on or off.
+- **Every bundle edit happens under a database row lock,** so a search adding people never overwrites a card you're editing.
+- **Gmail access is send-only,** requested only when you connect it, with the token encrypted at rest. Nothing is sent until you approve a postcard and confirm.
+- **Visitors get a demo** of made-up people that runs entirely in the browser. Real use is invite-only.
+
+More detail: [ARCHITECTURE.md](ARCHITECTURE.md) (laptop edition) and [ARCHITECTURE.md on `product`](https://github.com/shataksha45-shiiii/Cold-Mail/blob/product/ARCHITECTURE.md) (website).
+
+## Design decisions
+
+| Problem | Decision |
+|---|---|
+| Fully automatic cold email is spam | A person reviews every email; daily send cap of 50; it's personalised or it isn't sent |
+| AI-guessed emails bounce | Trust order with labels: public (with source) → verified → likely → guessed |
+| AI can make things up | Every person and hook carries a source URL you can open; the output is schema-checked |
+| Paying per search for AI isn't sustainable for a student | Hybrid: the hosted website plus a laptop worker on an existing Claude plan, so hosting is $0 |
+| A search and the user edit the same bundle | Row-locked merges; new people only ever appended; approved cards never touched |
+| Gmail permissions are sensitive | Send-only scope, incremental consent, encrypted tokens, one-click disconnect and account deletion |
+
+## Tech stack
+
+- **AI:** Claude (Claude Code headless on the laptop; Claude API agent with web search/fetch and tool use as an alternative on the server)
+- **Backend:** Node.js (no framework), PostgreSQL ([Neon](https://neon.tech)), [PGlite](https://pglite.dev) for local development
+- **Integrations:** Google OAuth 2.0 + Gmail API, Hunter, Apollo
+- **Frontend:** vanilla HTML, CSS and JavaScript; View Transitions; hand-drawn SVG motifs
+- **Hosting:** Render (free tier)
+
+## Two editions
+
+| Branch | What it is |
+|---|---|
+| **`main`** (this one) | **Laptop edition.** Runs locally with Claude Code; approved emails go to Gmail **Drafts**. Also contains the **helper** that runs searches for the website. Setup: [docs/laptop-setup.md](docs/laptop-setup.md) |
+| **[`product`](https://github.com/shataksha45-shiiii/Cold-Mail/tree/product)** | **Website edition** (live at [coldmail-cpw0.onrender.com](https://coldmail-cpw0.onrender.com)). Multi-user: Google sign-in, Postgres, sends from your Gmail, demo mode. Deploy guide: [DEPLOY.md](https://github.com/shataksha45-shiiii/Cold-Mail/blob/product/DEPLOY.md) |
+
+## Run it yourself
+
+**Laptop edition** (needs Node 22.9+ and Claude Code):
 
 ```bash
+git clone https://github.com/shataksha45-shiiii/Cold-Mail.git
+cd Cold-Mail
 npm run review
 ```
 
-That opens the app at http://localhost:3000.
+Then follow [docs/laptop-setup.md](docs/laptop-setup.md) to connect Gmail and, optionally, Hunter and Apollo.
 
-1. **setup** tab: upload your resume PDF (you can keep several, e.g. a PM one and a tech one).
-2. **+ new** tab: describe who you want to reach, pick how many people and which resume, and click **find people**. Claude Code runs in the background on your Pro plan (5–15 minutes) and you can watch each step.
-3. **desk** tab: flip through the postcards. Edit anything, **approve** or **set aside**. Need more people? **+ add people** next to the bundle name finds 5, 10 or 15 more for the same bundle, skipping anyone already in it or already emailed.
-4. **send to gmail**: approved emails land in Gmail → Drafts with your resume attached. You send them.
+**Website edition:** check out the `product` branch and follow [DEPLOY.md](https://github.com/shataksha45-shiiii/Cold-Mail/blob/product/DEPLOY.md). It runs entirely on free tiers (Render + Neon + Google OAuth in testing mode).
 
-You can still start a bundle from Claude Code instead: `/coldmail PM intern at early-stage AI startups in India, 15 people`.
+## Project structure (this branch)
 
-Check what's set up any time with `npm run status`, or open the **setup** tab.
-
-## Using it from a live website
-
-The `product` branch is a hosted version of this app (deploy guide in its `DEPLOY.md`). To keep your searches free there, connect this laptop as its helper:
-
-```bash
-npm run helper
+```
+.claude/commands/coldmail.md   the research-and-writing playbook Claude follows
+lib/        emailFinder (Apollo → Hunter → pattern), mime (emails + attachments),
+            google (OAuth + drafts), runs (headless Claude Code), store (data files)
+scripts/    status, check, find-emails, merge, drafts, auth, helper
+server/     local review app: review.js + public/ (the postcard UI)
+data/       your resume, profile, bundles and history (gitignored)
+docs/       setup guide and screenshots
 ```
 
-It needs `COLDMAIL_URL` and `COLDMAIL_WORKER_TOKEN` in `.env`. While it runs, searches you start on the website run here with Claude Code and show up on the site when done.
-
-## One-time setup
-
-### 1. Node.js 22.9 or newer
-You already have it (`node -v`). No `npm install` needed: the project has no dependencies.
-
-### 2. Connect Gmail (free, about 10 minutes)
-1. Go to https://console.cloud.google.com, create a project (e.g. "Cold Mail").
-2. **APIs & Services → Library** → search "Gmail API" → **Enable**.
-3. **APIs & Services → OAuth consent screen** (may be called "Google Auth Platform"): choose **External**, fill in the app name and your email. Under **Audience / Test users**, add your own Gmail address. Leave the app in **Testing**.
-4. **Credentials → Create credentials → OAuth client ID** → Application type **Desktop app** → Create → **Download JSON**.
-5. Save that file as `data/google-credentials.json`.
-6. Run:
-   ```bash
-   npm run auth
-   ```
-   Sign in, and click through the "Google hasn't verified this app" warning (it's your own app). You'll see "Gmail connected".
-
-The tool asks only for permission to **create drafts**. It cannot read your inbox, and it never sends anything.
-
-Google logs test-mode apps out after 7 days. When the review page says the login expired, just run `npm run auth` again.
-
-### 3. Email lookup keys (optional, free tiers)
-Copy keys into `.env`:
-- Apollo: app.apollo.io → Settings → Integrations → API → create key → `APOLLO_API_KEY=`
-- Hunter: hunter.io/api-keys → `HUNTER_API_KEY=`
-
-Without them, emails come only from Claude's research and pattern guesses. Free tiers have small monthly credit limits; the tool only spends them on people Claude couldn't find an email for.
-
-### 4. Make the emails sound like you (optional)
-Paste one or two cold emails you were happy with into `data/style-examples.md`. Edit your `signature` in `data/profile.json` after the first run.
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `/coldmail <role> [count]` | (in Claude Code) the whole pipeline |
-| `npm run status` | setup checklist and campaign list |
-| `npm run review` | open the review page |
-| `npm run auth` | connect / reconnect Gmail |
-| `npm run find-emails -- <id>` | re-run email lookup. Flags: `--verify-guesses`, `--only c1,c2`, `--max 5`, `--force` |
-| `npm run check -- <id>` | validate a campaign file |
-| `npm run merge -- <id> <file.json>` | add people to a bundle (or fill in their fields) without touching cards you've edited |
-| `npm run drafts -- <id>` | create drafts for approved contacts without the page |
-| `npm run helper` | connect this laptop to your hosted site so its searches run here |
-
 ## Privacy
-Everything stays on your laptop in `data/` (gitignored): resume, research, history, Google login. The review page only listens on your own machine.
+
+Laptop edition: everything stays on your machine, in `data/`. Website: your data is scoped to your account, Gmail is send-only, and you can delete your account and all its data at any time. See the [privacy policy](https://coldmail-cpw0.onrender.com/privacy).
+
+## Roadmap
+
+- [ ] Google verification for the Gmail permission, so anyone can sign up (needs a custom domain)
+- [ ] Reply tracking and follow-up reminders in the ledger
+- [ ] Per-bundle stats: reply rate by role and company type
+
+## Acknowledgements
+
+Built with [Claude Code](https://claude.com/claude-code) as a pair-programmer. The product decisions, design direction and day-to-day use are mine.
+
+## License
+
+[MIT](LICENSE)

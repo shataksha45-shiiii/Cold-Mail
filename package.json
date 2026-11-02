@@ -1,8 +1,8 @@
 {
-  "name": "cold-mail-automation",
+  "name": "coldmail",
   "version": "0.1.0",
   "private": true,
-  "description": "Find the right people for a role, write personalised cold emails, and drop them into Gmail drafts with your resume attached.",
+  "description": "Personal cold emails, hand-delivered: find the right people for a role, write each a personal email from your resume, review, send.",
   "type": "module",
   "engines": {
     "node": ">=22.9"
@@ -16,5 +16,11 @@
     "review": "node --env-file-if-exists=.env server/review.js",
     "merge": "node --env-file-if-exists=.env scripts/merge-contacts.js",
     "helper": "node --env-file-if-exists=.env scripts/helper.js"
+  },
+  "license": "MIT",
+  "homepage": "https://coldmail-cpw0.onrender.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shataksha45-shiiii/Cold-Mail.git"
   }
 }
