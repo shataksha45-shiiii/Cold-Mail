@@ -102,12 +102,15 @@ async function handle(job) {
 
   // Mirror progress to the site every few seconds until the local run ends.
   let lastSent = '';
+  let lastPost = 0;
   while (true) {
     await sleep(3000);
     const now = latestRun();
     const payload = { phase: now.phase, events: now.events, lastNote: now.lastNote || '' };
     const fingerprint = JSON.stringify(payload);
-    if (fingerprint !== lastSent || now.status !== 'running') {
+    // Report on change, and at least once a minute so the site sees we're alive and can ask us to stop.
+    if (fingerprint !== lastSent || now.status !== 'running' || Date.now() - lastPost > 60_000) {
+      lastPost = Date.now();
       try {
         const { stop } = await site(`/api/worker/runs/${run.id}/progress`, payload);
         lastSent = fingerprint;
