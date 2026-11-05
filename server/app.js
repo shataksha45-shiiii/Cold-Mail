@@ -285,6 +285,7 @@ const routes = [
   ['GET', /^\/api\/campaigns$/, async (_, __, user) => (await repo.listCampaigns(user.id)).map((c) => ({
     id: c.id,
     targetRole: c.targetRole,
+    name: c.name || null,
     createdAt: c.createdAt,
     counts: Object.fromEntries(['pending', 'approved', 'skipped', 'sent'].map((s) => [s, c.contacts.filter((x) => x.status === s).length])),
   }))],
@@ -309,11 +310,20 @@ const routes = [
 
   ['PATCH', /^\/api\/campaigns\/([\w-]+)$/, async ([id], body, user) => {
     if ('resumeId' in body) await repo.getResume(user.id, Number(body.resumeId)); // must be theirs
+    let name;
+    if ('name' in body) {
+      name = String(body.name ?? '').trim().replace(/\s+/g, ' ');
+      if (name.length > 80) throw new Error('Name is too long (80 characters max)');
+    }
     await repo.updateCampaign(user.id, id, (c) => {
       if ('resumeId' in body) c.resumeId = Number(body.resumeId);
       if ('attachResume' in body) c.attachResume = Boolean(body.attachResume);
+      if (name !== undefined) {
+        if (name) c.name = name;
+        else delete c.name; // empty name goes back to the role description
+      }
     });
-    return { ok: true };
+    return { ok: true, name: name || null };
   }],
 
   ['PATCH', /^\/api\/campaigns\/([\w-]+)\/contacts\/([\w-]+)$/, async ([id, contactId], body, user) => repo.updateCampaign(user.id, id, (c) => {

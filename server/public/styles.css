@@ -289,6 +289,11 @@ main { min-width: 0; padding: 0 44px 70px; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .bundle-name:hover { color: var(--marigold); }
+.rename-btn { border: 1px solid var(--glass-2); border-radius: 999px; background: none; color: rgba(255, 255, 255, .7); font: 400 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; padding: 7px 12px; white-space: nowrap; }
+.rename-btn:hover, .rename-btn:focus-visible { color: var(--marigold); border-color: var(--marigold); }
+.bundle-rename { font: inherit; font-size: 22px; font-weight: 700; color: var(--white); background: var(--glass-2); border: 1px solid var(--marigold); border-radius: 8px; padding: 2px 10px; min-width: min(420px, 70vw); }
+.bundle-pencil { position: absolute; top: 6px; right: 6px; z-index: 2; padding: 5px 9px; border-radius: 999px; background: rgba(0, 0, 0, .45); color: #fff; font: 400 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+.bundle-pencil:hover, .bundle-pencil:focus-visible { color: var(--marigold); }
 .more-wrap { position: relative; flex-shrink: 0; }
 .more-btn {
   border: 1px dashed rgba(200, 245, 61, .55); background: rgba(200, 245, 61, .06); color: var(--lime);

@@ -102,7 +102,7 @@ async function demoApi(path, options = {}) {
   const off = (what) => { throw new Error(`${what} is switched off in the demo.`); };
   let m;
   if (path === '/api/me') return clone(demoData.me);
-  if (path === '/api/campaigns') return [{ id: camp.id, targetRole: camp.targetRole, createdAt: camp.createdAt, counts: counts() }];
+  if (path === '/api/campaigns') return [{ id: camp.id, targetRole: camp.targetRole, name: camp.name || null, createdAt: camp.createdAt, counts: counts() }];
   if (path === '/api/history') return clone(demoData.history);
   if (path === '/api/runs/latest') return clone(demoData.run);
   if (path === '/api/runs') off('Searching');
@@ -121,7 +121,15 @@ async function demoApi(path, options = {}) {
   if (/\/send$/.test(path)) off('Sending');
   if (/\/verify$/.test(path)) off('Verifying emails');
   if (path.startsWith('/api/campaigns/') && method === 'GET') return clone(camp);
-  if (path.startsWith('/api/campaigns/') && method === 'PATCH') { Object.assign(camp, body); return { ok: true }; }
+  if (path.startsWith('/api/campaigns/') && method === 'PATCH') {
+    if ('name' in body) {
+      const name = String(body.name ?? '').trim().replace(/\s+/g, ' ').slice(0, 80);
+      if (name) camp.name = name; else delete camp.name;
+      return { ok: true, name: name || null };
+    }
+    Object.assign(camp, body);
+    return { ok: true };
+  }
   if (path === '/api/profile') {
     if (typeof body.signature === 'string') demoData.me.profile.signature = body.signature;
     if (typeof body.style === 'string') demoData.me.style = body.style;
@@ -225,7 +233,7 @@ function showView(view) {
 // ---------- Desk ----------
 function renderDeskHead() {
   const c = state.campaign;
-  $('#bundle-name').textContent = c.targetRole;
+  $('#bundle-name').textContent = c.name || c.targetRole;
   $('#more-btn').hidden = c.id === 'demo'; // the demo's people are made up
   for (const btn of $$('#filters button')) {
     const f = btn.dataset.filter;
@@ -586,7 +594,22 @@ function renderBundles() {
     b.innerHTML = `<div class="bundle-stack"><i></i><i></i><i>${motifFor(i)}<b></b></i></div><h2></h2><p></p>
       <div class="bar"><i class="b-sent"></i><i class="b-stamped"></i><i class="b-skipped"></i></div>`;
     $('.bundle-stack b', b).textContent = pad(total);
-    $('h2', b).textContent = c.targetRole;
+    $('h2', b).textContent = c.name || c.targetRole;
+    const pencil = document.createElement('span');
+    pencil.className = 'bundle-pencil';
+    pencil.setAttribute('role', 'button');
+    pencil.tabIndex = 0;
+    pencil.title = 'Rename this bundle';
+    pencil.textContent = '✎ rename';
+    const ask = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const next = prompt('Bundle name (leave empty to use the role description)', c.name || c.targetRole);
+      if (next !== null) saveBundleName(c.id, next);
+    };
+    pencil.onclick = ask;
+    pencil.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') ask(e); };
+    b.append(pencil);
     $('p', b).textContent = `${formatDate(c.createdAt)} · ${c.counts.pending} to review · ${c.counts.sent} sent`;
     const pct = (n) => `${total ? (n / total) * 100 : 0}%`;
     $('.b-sent', b).style.width = pct(c.counts.sent);
@@ -1239,3 +1262,51 @@ function decorate() {
 }
 
 init().catch((err) => toast(err.message, 'error'));
+
+// ---------- Rename a bundle ----------
+// An empty name (or the role text itself) removes the custom name.
+async function saveBundleName(id, next) {
+  next = next.trim();
+  try {
+    const row = state.campaigns.find((x) => x.id === id);
+    const role = row?.targetRole ?? state.campaign?.targetRole;
+    const res = await api(`/api/campaigns/${id}`, { method: 'PATCH', body: { name: next === role ? '' : next } });
+    if (row) row.name = res.name;
+    if (state.campaign?.id === id) state.campaign.name = res.name || undefined;
+    if (state.view === 'desk' && state.campaign) renderDeskHead();
+    if (state.view === 'bundles') renderBundles();
+    toast('Bundle renamed');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+$('#rename-btn').onclick = () => {
+  const c = state.campaign;
+  const link = $('#bundle-name');
+  const btn = $('#rename-btn');
+  const input = document.createElement('input');
+  input.className = 'bundle-rename';
+  input.maxLength = 80;
+  input.value = c.name || c.targetRole;
+  input.placeholder = c.targetRole;
+  input.setAttribute('aria-label', 'Bundle name');
+  link.hidden = btn.hidden = true;
+  link.after(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = (save) => {
+    if (done) return;
+    done = true;
+    const next = input.value;
+    input.remove();
+    link.hidden = btn.hidden = false;
+    if (save && next.trim() !== (c.name || c.targetRole)) saveBundleName(c.id, next);
+  };
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') finish(true);
+    if (e.key === 'Escape') finish(false);
+  };
+  input.onblur = () => finish(true);
+};
